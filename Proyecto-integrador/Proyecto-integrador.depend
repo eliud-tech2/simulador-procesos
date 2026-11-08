@@ -1,0 +1,30 @@
+# depslib dependency file v1.0
+1794099988 source:c:\users\user\documents\proyecto integrador\proyecto-integrador\main.c
+	<stdio.h>
+	"proceso.h"
+	"estructuras.h"
+	"planificador.h"
+
+1793846764 c:\users\user\documents\proyecto integrador\proyecto-integrador\proceso.h
+
+1793846798 source:c:\users\user\documents\proyecto integrador\proyecto-integrador\proceso.c
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+	"proceso.h"
+
+1793848035 c:\users\user\documents\proyecto integrador\proyecto-integrador\estructuras.h
+	"proceso.h"
+
+1793848286 source:c:\users\user\documents\proyecto integrador\proyecto-integrador\estructuras.c
+	<stdio.h>
+	<stdlib.h>
+	"estructuras.h"
+
+1794099904 c:\users\user\documents\proyecto integrador\proyecto-integrador\planificador.h
+	"estructuras.h"
+
+1794099952 source:c:\users\user\documents\proyecto integrador\proyecto-integrador\planificador.c
+	<stdio.h>
+	"planificador.h"
+
