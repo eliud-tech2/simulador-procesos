@@ -18,7 +18,6 @@ void inicializar_lista(ListaProcesos* lista) {
 void insertar_lista(ListaProcesos* lista, Proceso* p) {
     if (lista == NULL || p == NULL) return;
 
-    // 1. Creamos la caja (Nodo) para guardar el proceso
     Nodo* nuevo_nodo = (Nodo*)malloc(sizeof(Nodo));
     if (nuevo_nodo == NULL) {
         printf("Error: No hay memoria para insertar en la lista.\n");
@@ -27,22 +26,18 @@ void insertar_lista(ListaProcesos* lista, Proceso* p) {
     nuevo_nodo->proceso = p;
     nuevo_nodo->siguiente = NULL;
 
-    // 2. Si la lista está vacía, este es el primer elemento
     if (lista->cabeza == NULL) {
         lista->cabeza = nuevo_nodo;
     } else {
-        // 3. Si ya hay elementos, recorremos la lista hasta llegar al final
         Nodo* actual = lista->cabeza;
         while (actual->siguiente != NULL) {
             actual = actual->siguiente;
         }
-        // Lo conectamos al final
         actual->siguiente = nuevo_nodo;
     }
 
     lista->tamano++;
 }
-
 
 /* ==========================================================================
  * FUNCIONES DE LA COLA FIFO (Para Planificador Round Robin)
@@ -70,11 +65,9 @@ void encolar(ColaListos* cola, Proceso* p) {
     nuevo_nodo->siguiente = NULL;
 
     if (cola->final == NULL) {
-        // Si la cola estaba vacía, el frente y el final son el mismo
         cola->frente = nuevo_nodo;
         cola->final = nuevo_nodo;
     } else {
-        // Si ya hay gente en la fila, lo ponemos detrás del último
         cola->final->siguiente = nuevo_nodo;
         cola->final = nuevo_nodo;
     }
@@ -88,22 +81,69 @@ Proceso* desencolar(ColaListos* cola) {
         return NULL; // La cola está vacía
     }
 
-    // 1. Agarramos el nodo que está al frente
     Nodo* nodo_salida = cola->frente;
     Proceso* p_salida = nodo_salida->proceso;
 
-    // 2. Movemos la fila: el nuevo frente es el que seguía
     cola->frente = cola->frente->siguiente;
 
-    // 3. Si al sacar a este, la fila se quedó vacía, el final también es NULL
     if (cola->frente == NULL) {
         cola->final = NULL;
     }
 
     cola->tamano--;
 
-    // 4. Liberamos la "caja" vacía (pero no el proceso, ese se va al CPU)
     free(nodo_salida);
 
     return p_salida;
+} // ESTA ES LA LLAVE QUE FALTABA
+
+/* ==========================================================================
+ * FUNCIONES DEL ÁRBOL BINARIO DE BÚSQUEDA (BST)
+ * ========================================================================== */
+
+void inicializar_arbol(ArbolPID* arbol) {
+    if (arbol != NULL) {
+        arbol->raiz = NULL;
+    }
+}
+
+/* Funcion recursiva oculta para navegar las ramas y encontrar el lugar vacio */
+static NodoArbol* insertar_nodo_arbol(NodoArbol* nodo, Proceso* p) {
+    if (nodo == NULL) {
+        NodoArbol* nuevo = (NodoArbol*)malloc(sizeof(NodoArbol));
+        nuevo->proceso = p;
+        nuevo->izquierda = NULL;
+        nuevo->derecha = NULL;
+        return nuevo;
+    }
+
+    if (p->pid < nodo->proceso->pid) {
+        nodo->izquierda = insertar_nodo_arbol(nodo->izquierda, p);
+    }
+    else if (p->pid > nodo->proceso->pid) {
+        nodo->derecha = insertar_nodo_arbol(nodo->derecha, p);
+    }
+
+    return nodo;
+}
+
+/* Funcion principal que el sistema llama para meter un proceso al arbol */
+void insertar_arbol(ArbolPID* arbol, Proceso* p) {
+    if (arbol != NULL && p != NULL) {
+        arbol->raiz = insertar_nodo_arbol(arbol->raiz, p);
+    }
+}
+
+/* Busqueda ultrarrapida: descarta mitades enteras del arbol en cada salto */
+Proceso* buscar_arbol_pid(NodoArbol* raiz, int pid_buscado) {
+    if (raiz == NULL || raiz->proceso->pid == pid_buscado) {
+        return (raiz != NULL) ? raiz->proceso : NULL;
+    }
+
+    if (pid_buscado < raiz->proceso->pid) {
+        return buscar_arbol_pid(raiz->izquierda, pid_buscado);
+    }
+    else {
+        return buscar_arbol_pid(raiz->derecha, pid_buscado);
+    }
 }

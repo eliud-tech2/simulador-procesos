@@ -24,9 +24,6 @@ void intentar_crear_proceso_nuevo(ListaProcesos* lista, ColaListos* cola, int* c
 
         insertar_lista(lista, nuevo);
         encolar(cola, nuevo);
-
-        printf("      -> [+] NUEVO PROCESO CREADO: %s (PID: %d)\n", nuevo->nombre, nuevo->pid);
-
         (*contador_pid)++;
     }
 }

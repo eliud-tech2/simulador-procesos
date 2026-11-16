@@ -52,4 +52,9 @@ void inicializar_cola(ColaListos* cola);
 void encolar(ColaListos* cola, Proceso* p);
 Proceso* desencolar(ColaListos* cola);
 
+/* Funciones del Arbol Binario de Busqueda (Por PID) */
+void inicializar_arbol(ArbolPID* arbol);
+void insertar_arbol(ArbolPID* arbol, Proceso* p);
+Proceso* buscar_arbol_pid(NodoArbol* raiz, int pid_buscado);
+
 #endif

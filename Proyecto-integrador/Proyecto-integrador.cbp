@@ -45,9 +45,18 @@
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="generador.h" />
+		<Unit filename="interfaz.c">
+			<Option compilerVar="CC" />
+			<Option target="Debug" />
+		</Unit>
+		<Unit filename="interfaz.h" />
 		<Unit filename="main.c">
 			<Option compilerVar="CC" />
 		</Unit>
+		<Unit filename="ordenamiento.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="ordenamiento.h" />
 		<Unit filename="planificador.c">
 			<Option compilerVar="CC" />
 		</Unit>
