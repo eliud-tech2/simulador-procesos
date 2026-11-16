@@ -13,16 +13,15 @@ typedef enum {
 typedef struct {
     int pid;
     char nombre[50];
-    int prioridad;
     float cpu_uso;
     float mem_uso;
     EstadoProceso estado;
     int tiempo_ejecucion;
-    int tiempo_rafaga; /* Tiempo total estimado de CPU requerido (para SJF y terminación natural) */
+    int tiempo_rafaga; /* Tiempo total estimado de CPU requerido */
 } Proceso;
 
 /* Prototipos de las funciones que manipulan al proceso */
-Proceso* crear_proceso(int pid, const char* nombre, int prioridad, float mem_uso);
+Proceso* crear_proceso(int pid, const char* nombre, float mem_uso);
 void suspender_proceso(Proceso* p);
 void reanudar_proceso(Proceso* p);
 void terminar_proceso(Proceso* p);

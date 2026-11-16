@@ -20,7 +20,6 @@ typedef struct {
 void busqueda_secuencial_estado(ListaProcesos* lista, EstadoProceso estado_buscado);
 Proceso* busqueda_secuencial_pid(ListaProcesos* lista, int pid_buscado);
 void busqueda_secuencial_nombre(ListaProcesos* lista, const char* nombre_buscado);
-void busqueda_secuencial_prioridad(ListaProcesos* lista, int prioridad_buscada);
 
 /* 2. Binaria: Encuentra UN proceso único por PID (requiere un arreglo ordenado) */
 Proceso* busqueda_binaria_pid(Proceso** arreglo_procesos, int total, int pid_buscado);

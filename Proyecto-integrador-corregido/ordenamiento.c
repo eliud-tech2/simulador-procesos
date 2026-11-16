@@ -113,7 +113,7 @@ void radix_sort_por_pid(Proceso** arreglo, int total) {
 }
 
 /* ==========================================================================
- * 3. COMPARADOR GENERAL Y SHELLSORT / QUICKSORT / RADIX MULTI-CRITERIO
+ * 3. QUICKSORT Y RADIX MULTI-CRITERIO
  * ========================================================================== */
 
 /* Retorna 1 si 'a' debe ir estrictamente ANTES que 'b' según el criterio */
@@ -123,8 +123,6 @@ static int es_estrictamente_anterior(Proceso* a, Proceso* b, CriterioOrden crite
             return a->mem_uso > b->mem_uso; /* Mayor a menor */
         case CRITERIO_CPU:
             return a->cpu_uso > b->cpu_uso; /* Mayor a menor */
-        case CRITERIO_PRIORIDAD:
-            return a->prioridad > b->prioridad; /* Mayor a menor */
         case CRITERIO_TIEMPO:
             return a->tiempo_ejecucion > b->tiempo_ejecucion; /* Mayor a menor */
         case CRITERIO_PID:
@@ -157,29 +155,11 @@ void quicksort_procesos(Proceso** arreglo, int izquierda, int derecha, CriterioO
     }
 }
 
-/* Shellsort: Optimización de inserción directa mediante brechas (gaps) decrecientes */
-void shellsort_procesos(Proceso** arreglo, int total, CriterioOrden criterio) {
-    if (arreglo == NULL || total <= 1) return;
-
-    for (int gap = total / 2; gap > 0; gap /= 2) {
-        for (int i = gap; i < total; i++) {
-            Proceso* temp = arreglo[i];
-            int j = i;
-            while (j >= gap && es_estrictamente_anterior(temp, arreglo[j - gap], criterio)) {
-                arreglo[j] = arreglo[j - gap];
-                j -= gap;
-            }
-            arreglo[j] = temp;
-        }
-    }
-}
-
 /* Convierte el atributo seleccionado a un entero no negativo para Radix Sort */
 static int obtener_llave_radix(Proceso* p, CriterioOrden criterio) {
     switch (criterio) {
         case CRITERIO_MEMORIA:   return (int)(p->mem_uso * 10.0f + 0.5f);
         case CRITERIO_CPU:       return (int)(p->cpu_uso * 10.0f + 0.5f);
-        case CRITERIO_PRIORIDAD: return (p->prioridad >= 0) ? p->prioridad : 0;
         case CRITERIO_TIEMPO:    return (p->tiempo_ejecucion >= 0) ? p->tiempo_ejecucion : 0;
         case CRITERIO_PID:       return (p->pid >= 0) ? p->pid : 0;
         default:                 return p->pid;
@@ -222,7 +202,7 @@ void radix_sort_procesos(Proceso** arreglo, int total, CriterioOrden criterio) {
         counting_sort_criterio(arreglo, total, exp, criterio);
     }
 
-    /* Para métricas de uso/prioridad/tiempo invertimos para mostrar de Mayor a Menor */
+    /* Para métricas de uso/tiempo invertimos para mostrar de Mayor a Menor */
     if (criterio != CRITERIO_PID) {
         for (int i = 0; i < total / 2; i++) {
             intercambiar(&arreglo[i], &arreglo[total - 1 - i]);
@@ -236,9 +216,6 @@ void ordenar_procesos(Proceso** arreglo, int total, AlgoritmoOrden algoritmo, Cr
     switch (algoritmo) {
         case ORDEN_QUICKSORT:
             quicksort_procesos(arreglo, 0, total - 1, criterio);
-            break;
-        case ORDEN_SHELLSORT:
-            shellsort_procesos(arreglo, total, criterio);
             break;
         case ORDEN_RADIX:
             radix_sort_procesos(arreglo, total, criterio);

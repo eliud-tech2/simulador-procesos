@@ -164,61 +164,6 @@ void liberar_cola(ColaListos* cola) {
 }
 
 /* ==========================================================================
- * FUNCIONES DE LA COLA DE PRIORIDAD (Mayor prioridad al frente)
- * ========================================================================== */
-
-void inicializar_cola_prioridad(ColaPrioridad* cp) {
-    if (cp != NULL) {
-        cp->frente = NULL;
-        cp->tamano = 0;
-    }
-}
-
-/* Inserta ordenado de MAYOR a MENOR prioridad (0=Baja .. 3=Crítica) */
-void encolar_prioridad(ColaPrioridad* cp, Proceso* p) {
-    if (cp == NULL || p == NULL) return;
-
-    Nodo* nuevo = (Nodo*)malloc(sizeof(Nodo));
-    if (nuevo == NULL) {
-        printf("Error: No hay memoria para encolar en prioridad.\n");
-        return;
-    }
-    nuevo->proceso = p;
-    nuevo->siguiente = NULL;
-
-    if (cp->frente == NULL || p->prioridad > cp->frente->proceso->prioridad) {
-        nuevo->siguiente = cp->frente;
-        cp->frente = nuevo;
-    } else {
-        Nodo* actual = cp->frente;
-        while (actual->siguiente != NULL && actual->siguiente->proceso->prioridad >= p->prioridad) {
-            actual = actual->siguiente;
-        }
-        nuevo->siguiente = actual->siguiente;
-        actual->siguiente = nuevo;
-    }
-    cp->tamano++;
-}
-
-/* Extrae el proceso con mayor prioridad */
-Proceso* desencolar_prioridad(ColaPrioridad* cp) {
-    if (cp == NULL || cp->frente == NULL) return NULL;
-    Nodo* nodo_salida = cp->frente;
-    Proceso* p = nodo_salida->proceso;
-    cp->frente = cp->frente->siguiente;
-    cp->tamano--;
-    free(nodo_salida);
-    return p;
-}
-
-void liberar_cola_prioridad(ColaPrioridad* cp) {
-    if (cp == NULL) return;
-    while (cp->frente != NULL) {
-        desencolar_prioridad(cp);
-    }
-}
-
-/* ==========================================================================
  * FUNCIONES DEL ÁRBOL BINARIO DE BÚSQUEDA (BST)
  * ========================================================================== */
 

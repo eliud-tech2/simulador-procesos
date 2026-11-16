@@ -17,10 +17,9 @@ void intentar_crear_proceso_nuevo(ListaProcesos* lista, ColaListos* cola, int* c
     if (rand() % 100 < 35) {
 
         int indice_aleatorio = rand() % 20;
-        int prio_random = rand() % 4;
         float mem_random = (rand() % 150) / 10.0f;
 
-        Proceso* nuevo = crear_proceso(*contador_pid, banco_nombres[indice_aleatorio], prio_random, mem_random);
+        Proceso* nuevo = crear_proceso(*contador_pid, banco_nombres[indice_aleatorio], mem_random);
 
         insertar_lista(lista, nuevo);
         encolar(cola, nuevo);
@@ -42,10 +41,9 @@ void intentar_crear_proceso_sistema(ListaProcesos* lista, ColaListos* cola, Arbo
     if (rand() % 100 < 35) {
 
         int indice_aleatorio = rand() % 20;
-        int prio_random = rand() % 4;
         float mem_random = (float)(rand() % 145 + 5) / 10.0f;
 
-        Proceso* nuevo = crear_proceso(*contador_pid, banco_nombres[indice_aleatorio], prio_random, mem_random);
+        Proceso* nuevo = crear_proceso(*contador_pid, banco_nombres[indice_aleatorio], mem_random);
         if (nuevo != NULL) {
             insertar_lista(lista, nuevo);
             encolar(cola, nuevo);
@@ -54,21 +52,4 @@ void intentar_crear_proceso_sistema(ListaProcesos* lista, ColaListos* cola, Arbo
             (*contador_pid)++;
         }
     }
-}
-
-Proceso* crear_proceso_manual(ListaProcesos* lista, ColaListos* cola, ArbolPID* arbol, TablaHash* th, int* contador_pid, const char* nombre, int prioridad, float mem_uso) {
-    if (prioridad < 0) prioridad = 0;
-    if (prioridad > 3) prioridad = 3;
-    if (mem_uso < 0.1f) mem_uso = 0.1f;
-    if (mem_uso > 99.0f) mem_uso = 99.0f;
-
-    Proceso* nuevo = crear_proceso(*contador_pid, nombre, prioridad, mem_uso);
-    if (nuevo != NULL) {
-        insertar_lista(lista, nuevo);
-        encolar(cola, nuevo);
-        if (arbol != NULL) insertar_arbol(arbol, nuevo);
-        if (th != NULL) insertar_hash(th, nuevo);
-        (*contador_pid)++;
-    }
-    return nuevo;
 }

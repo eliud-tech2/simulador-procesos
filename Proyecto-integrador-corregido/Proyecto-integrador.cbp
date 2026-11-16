@@ -37,6 +37,10 @@
 		<Unit filename="busqueda.h">
 			<Option target="Debug" />
 		</Unit>
+		<Unit filename="consola.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="consola.h" />
 		<Unit filename="estructuras.c">
 			<Option compilerVar="CC" />
 		</Unit>

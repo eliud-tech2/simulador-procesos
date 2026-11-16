@@ -4,7 +4,7 @@
 #include "proceso.h"
 
 /* Construye un proceso nuevo reservando memoria RAM */
-Proceso* crear_proceso(int pid, const char* nombre, int prioridad, float mem_uso) {
+Proceso* crear_proceso(int pid, const char* nombre, float mem_uso) {
     // 1. Pedimos la memoria exacta que pesa un struct Proceso
     Proceso* nuevo = (Proceso*)malloc(sizeof(Proceso));
 
@@ -21,7 +21,6 @@ Proceso* crear_proceso(int pid, const char* nombre, int prioridad, float mem_uso
     strncpy(nuevo->nombre, nombre, 49);
     nuevo->nombre[49] = '\0';
 
-    nuevo->prioridad = prioridad;
     nuevo->cpu_uso = 0.0f; // Nace sin usar CPU, el planificador se lo subirá
     nuevo->mem_uso = mem_uso;
     nuevo->estado = LISTO; // Todo proceso nuevo entra directamente a la fila de LISTOS

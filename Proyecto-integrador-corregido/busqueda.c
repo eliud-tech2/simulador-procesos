@@ -25,9 +25,10 @@ void busqueda_secuencial_estado(ListaProcesos* lista, EstadoProceso estado_busca
 
     while (actual != NULL) {
         if (actual->proceso->estado == estado_buscado) {
-            printf("- PID: %d | Nombre: %s | Prio: %d | CPU: %.1f%% | RAM: %.1f%%\n",
+            printf("- PID: %d | Nombre: %-15s | CPU: %5.1f%% | RAM: %5.1f%% | Ciclos: %d/%d\n",
                    actual->proceso->pid, actual->proceso->nombre,
-                   actual->proceso->prioridad, actual->proceso->cpu_uso, actual->proceso->mem_uso);
+                   actual->proceso->cpu_uso, actual->proceso->mem_uso,
+                   actual->proceso->tiempo_ejecucion, actual->proceso->tiempo_rafaga);
             encontrados++;
         }
         actual = actual->siguiente; /* Salta al siguiente proceso de la lista */
@@ -35,6 +36,8 @@ void busqueda_secuencial_estado(ListaProcesos* lista, EstadoProceso estado_busca
 
     if (encontrados == 0) {
         printf("No se encontraron procesos en ese estado.\n");
+    } else {
+        printf("\nTotal encontrados: %d\n", encontrados);
     }
 }
 
@@ -61,8 +64,8 @@ void busqueda_secuencial_nombre(ListaProcesos* lista, const char* nombre_buscado
 
     while (actual != NULL) {
         if (strcmp(actual->proceso->nombre, nombre_buscado) == 0) {
-            printf("- PID: %d | Prio: %d | RAM: %.1f%% | Estado: %s\n",
-                   actual->proceso->pid, actual->proceso->prioridad,
+            printf("- PID: %d | RAM: %.1f%% | Estado: %s\n",
+                   actual->proceso->pid,
                    actual->proceso->mem_uso, nombre_estado_texto(actual->proceso->estado));
             encontrados++;
         }
@@ -71,30 +74,6 @@ void busqueda_secuencial_nombre(ListaProcesos* lista, const char* nombre_buscado
 
     if (encontrados == 0) {
         printf("No se encontraron procesos llamados '%s'.\n", nombre_buscado);
-    }
-}
-
-/* Búsqueda secuencial por Prioridad en la lista enlazada */
-void busqueda_secuencial_prioridad(ListaProcesos* lista, int prioridad_buscada) {
-    if (lista == NULL || lista->cabeza == NULL) return;
-
-    printf("\n--- Procesos con prioridad %d ---\n", prioridad_buscada);
-    Nodo* actual = lista->cabeza;
-    int encontrados = 0;
-
-    while (actual != NULL) {
-        if (actual->proceso->prioridad == prioridad_buscada) {
-            printf("- PID: %d | Nombre: %s | CPU: %.1f%% | RAM: %.1f%% | Estado: %s\n",
-                   actual->proceso->pid, actual->proceso->nombre,
-                   actual->proceso->cpu_uso, actual->proceso->mem_uso,
-                   nombre_estado_texto(actual->proceso->estado));
-            encontrados++;
-        }
-        actual = actual->siguiente;
-    }
-
-    if (encontrados == 0) {
-        printf("No se encontraron procesos con prioridad %d.\n", prioridad_buscada);
     }
 }
 
@@ -166,8 +145,8 @@ void buscar_hash_nombre(TablaHash* th, const char* nombre_buscado) {
     printf("\n--- Resultados Hash para el proceso '%s' (Indice #%u) ---\n", nombre_buscado, indice);
     while (actual != NULL) {
         if (strcmp(actual->proceso->nombre, nombre_buscado) == 0) {
-            printf("- PID: %d | Prio: %d | CPU: %.1f%% | RAM: %.1f%% | Estado: %s\n",
-                   actual->proceso->pid, actual->proceso->prioridad,
+            printf("- PID: %d | CPU: %.1f%% | RAM: %.1f%% | Estado: %s\n",
+                   actual->proceso->pid,
                    actual->proceso->cpu_uso, actual->proceso->mem_uso,
                    nombre_estado_texto(actual->proceso->estado));
             encontrados++;

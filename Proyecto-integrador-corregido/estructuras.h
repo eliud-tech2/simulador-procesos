@@ -28,15 +28,7 @@ typedef struct {
 } ColaListos;
 
 /* --------------------------------------------------------------------------
- * 4. COLA DE PRIORIDAD (Para planificador por Prioridad y SJF)
- * -------------------------------------------------------------------------- */
-typedef struct {
-    Nodo* frente; // Siempre apunta al proceso más prioritario
-    int tamano;
-} ColaPrioridad;
-
-/* --------------------------------------------------------------------------
- * 5. NODO Y ÁRBOL BINARIO DE BÚSQUEDA (Para buscar rápido por PID)
+ * 4. NODO Y ÁRBOL BINARIO DE BÚSQUEDA (Para buscar rápido por PID)
  * -------------------------------------------------------------------------- */
 typedef struct NodoArbol {
     Proceso* proceso;
@@ -63,12 +55,6 @@ Proceso* desencolar(ColaListos* cola);
 int esta_en_cola(ColaListos* cola, int pid);
 void eliminar_de_cola(ColaListos* cola, int pid);
 void liberar_cola(ColaListos* cola);
-
-/* Funciones de la Cola de Prioridad */
-void inicializar_cola_prioridad(ColaPrioridad* cp);
-void encolar_prioridad(ColaPrioridad* cp, Proceso* p);
-Proceso* desencolar_prioridad(ColaPrioridad* cp);
-void liberar_cola_prioridad(ColaPrioridad* cp);
 
 /* Funciones del Arbol Binario de Busqueda (Por PID) */
 void inicializar_arbol(ArbolPID* arbol);

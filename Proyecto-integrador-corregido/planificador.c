@@ -32,8 +32,8 @@ void ejecutar_round_robin(ColaListos* cola, int quantum) {
     }
 }
 
-/* Planificador completo: mantiene visible el estado EJECUCION entre ciclos */
-void ejecutar_planificador(ColaListos* cola, AlgoritmoPlanificacion algoritmo, int quantum, Proceso** proceso_en_cpu) {
+/* Planificador Round Robin que mantiene visible el estado EJECUCION entre ciclos */
+void ejecutar_planificador_rr(ColaListos* cola, int quantum, Proceso** proceso_en_cpu) {
     if (cola == NULL || proceso_en_cpu == NULL) return;
 
     /* 1. Evaluar el proceso que estuvo en CPU durante el ciclo anterior */
@@ -49,70 +49,24 @@ void ejecutar_planificador(ColaListos* cola, AlgoritmoPlanificacion algoritmo, i
             if (p_actual->tiempo_ejecucion >= p_actual->tiempo_rafaga) {
                 terminar_proceso(p_actual);
                 *proceso_en_cpu = NULL;
-            } else if (algoritmo == ALGORITMO_RR) {
+            } else {
                 /* Expropiación en Round Robin al terminar el quantum */
                 p_actual->estado = LISTO;
                 p_actual->cpu_uso = (float)(rand() % 28 + 5) / 10.0f;
                 encolar(cola, p_actual);
                 *proceso_en_cpu = NULL;
-            } else {
-                /* En Prioridad y SJF continúa en CPU hasta terminar o ser suspendido */
-                p_actual->cpu_uso = (float)(rand() % 760 + 125) / 10.0f;
-                return;
             }
         }
     }
 
-    /* 2. Si el CPU quedó libre, seleccionar el siguiente proceso LISTO */
+    /* 2. Si el CPU quedó libre, seleccionar el siguiente proceso LISTO de la cola FIFO */
     if (*proceso_en_cpu == NULL && cola->frente != NULL) {
         Proceso* siguiente = NULL;
-
-        if (algoritmo == ALGORITMO_RR) {
-            while (cola->frente != NULL) {
-                Proceso* candidato = desencolar(cola);
-                if (candidato != NULL && candidato->estado == LISTO) {
-                    siguiente = candidato;
-                    break;
-                }
-            }
-        } else if (algoritmo == ALGORITMO_PRIORIDAD) {
-            /* Usamos la Cola de Prioridad para ordenar los procesos listos */
-            ColaPrioridad cp;
-            inicializar_cola_prioridad(&cp);
-
-            while (cola->frente != NULL) {
-                Proceso* candidato = desencolar(cola);
-                if (candidato != NULL && candidato->estado == LISTO) {
-                    encolar_prioridad(&cp, candidato);
-                }
-            }
-
-            siguiente = desencolar_prioridad(&cp);
-
-            /* Devolvemos los demás procesos listos a la cola del sistema */
-            while (cp.frente != NULL) {
-                encolar(cola, desencolar_prioridad(&cp));
-            }
-        } else if (algoritmo == ALGORITMO_SJF) {
-            /* Shortest Job First: menor tiempo restante estimado */
-            Nodo* act = cola->frente;
-            Proceso* mejor = NULL;
-            int menor_restante = 999999;
-
-            while (act != NULL) {
-                if (act->proceso != NULL && act->proceso->estado == LISTO) {
-                    int restante = act->proceso->tiempo_rafaga - act->proceso->tiempo_ejecucion;
-                    if (restante < menor_restante) {
-                        menor_restante = restante;
-                        mejor = act->proceso;
-                    }
-                }
-                act = act->siguiente;
-            }
-
-            if (mejor != NULL) {
-                eliminar_de_cola(cola, mejor->pid);
-                siguiente = mejor;
+        while (cola->frente != NULL) {
+            Proceso* candidato = desencolar(cola);
+            if (candidato != NULL && candidato->estado == LISTO) {
+                siguiente = candidato;
+                break;
             }
         }
 
