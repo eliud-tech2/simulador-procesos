@@ -41,7 +41,7 @@ typedef struct {
 } ArbolPID;
 
 /* --------------------------------------------------------------------------
- * PROTOTIPOS DE FUNCIONES (Las programaremos después en estructuras.c)
+ * FUNCIONES
  * -------------------------------------------------------------------------- */
 /* Funciones de la Lista */
 void inicializar_lista(ListaProcesos* lista);

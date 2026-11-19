@@ -22,8 +22,9 @@ Proceso** convertir_lista_a_arreglo(ListaProcesos* lista) {
 }
 
 /* ==========================================================================
- * 1. QUICKSORT (Ordena de Mayor a Menor por Memoria RAM)
+ * HEAPSORT (Ordenamiento mediante Montículo Binario - O(n log n))
  * ========================================================================== */
+
 /* Función interna para intercambiar dos procesos de lugar en el arreglo */
 static void intercambiar(Proceso** a, Proceso** b) {
     Proceso* temporal = *a;
@@ -31,194 +32,61 @@ static void intercambiar(Proceso** a, Proceso** b) {
     *b = temporal;
 }
 
-static int particion_memoria(Proceso** arreglo, int izquierda, int derecha) {
-    float pivote = arreglo[derecha]->mem_uso; /* Tomamos el último como referencia */
-    int i = (izquierda - 1);
-
-    for (int j = izquierda; j < derecha; j++) {
-        /* Si el proceso actual gasta MÁS o IGUAL memoria que el pivote, va a la izquierda */
-        if (arreglo[j]->mem_uso >= pivote) {
-            i++;
-            intercambiar(&arreglo[i], &arreglo[j]);
-        }
-    }
-    intercambiar(&arreglo[i + 1], &arreglo[derecha]);
-    return (i + 1);
-}
-
-void quicksort_por_memoria(Proceso** arreglo, int izquierda, int derecha) {
-    if (arreglo == NULL) return;
-    if (izquierda < derecha) {
-        int indice_pivote = particion_memoria(arreglo, izquierda, derecha);
-        /* Ordenamos recursivamente la mitad izquierda y la mitad derecha */
-        quicksort_por_memoria(arreglo, izquierda, indice_pivote - 1);
-        quicksort_por_memoria(arreglo, indice_pivote + 1, derecha);
-    }
-}
-
-/* ==========================================================================
- * 2. RADIX SORT (Ordena de Menor a Mayor por PID)
- * ========================================================================== */
-/* Obtiene el PID más grande para saber cuántos dígitos debemos revisar */
-static int obtener_maximo_pid(Proceso** arreglo, int total) {
-    int max = arreglo[0]->pid;
-    for (int i = 1; i < total; i++) {
-        if (arreglo[i]->pid > max) {
-            max = arreglo[i]->pid;
-        }
-    }
-    return max;
-}
-
-/* Ordena los procesos según el dígito actual (exp = 1 unidades, 10 decenas, 100 centenas) */
-static void counting_sort_digito(Proceso** arreglo, int total, int exp) {
-    Proceso** salida = (Proceso**)malloc(total * sizeof(Proceso*));
-    if (salida == NULL) return;
-    int cubetas[10] = {0};
-
-    /* 1. Contamos cuántos PIDs caen en cada cubeta del 0 al 9 */
-    for (int i = 0; i < total; i++) {
-        int digito = (arreglo[i]->pid / exp) % 10;
-        cubetas[digito]++;
-    }
-
-    /* 2. Acumulamos las posiciones para saber el lugar exacto en el arreglo de salida */
-    for (int i = 1; i < 10; i++) {
-        cubetas[i] += cubetas[i - 1];
-    }
-
-    /* 3. Acomodamos los procesos en el arreglo temporal de atrás hacia adelante */
-    for (int i = total - 1; i >= 0; i--) {
-        int digito = (arreglo[i]->pid / exp) % 10;
-        salida[cubetas[digito] - 1] = arreglo[i];
-        cubetas[digito]--;
-    }
-
-    /* 4. Copiamos el resultado ordenado al arreglo original y liberamos la memoria temporal */
-    for (int i = 0; i < total; i++) {
-        arreglo[i] = salida[i];
-    }
-    free(salida);
-}
-
-void radix_sort_por_pid(Proceso** arreglo, int total) {
-    if (arreglo == NULL || total <= 1) return;
-
-    int max_pid = obtener_maximo_pid(arreglo, total);
-
-    /* Pasamos por unidades (1), decenas (10), centenas (100), etc. */
-    for (int exp = 1; max_pid / exp > 0; exp *= 10) {
-        counting_sort_digito(arreglo, total, exp);
-    }
-}
-
-/* ==========================================================================
- * 3. QUICKSORT Y RADIX MULTI-CRITERIO
- * ========================================================================== */
-
-/* Retorna 1 si 'a' debe ir estrictamente ANTES que 'b' según el criterio */
-static int es_estrictamente_anterior(Proceso* a, Proceso* b, CriterioOrden criterio) {
+/* Retorna 1 si 'a' debe quedar DESPUÉS que 'b' (en el fondo del arreglo al extraer la cima) */
+static int debe_ir_despues(Proceso* a, Proceso* b, CriterioOrden criterio) {
     switch (criterio) {
         case CRITERIO_MEMORIA:
-            return a->mem_uso > b->mem_uso; /* Mayor a menor */
+            return a->mem_uso < b->mem_uso; /* Para ordenar de Mayor a Menor */
         case CRITERIO_CPU:
-            return a->cpu_uso > b->cpu_uso; /* Mayor a menor */
+            return a->cpu_uso < b->cpu_uso; /* Para ordenar de Mayor a Menor */
         case CRITERIO_TIEMPO:
-            return a->tiempo_ejecucion > b->tiempo_ejecucion; /* Mayor a menor */
+            return a->tiempo_ejecucion < b->tiempo_ejecucion; /* Mayor a Menor */
         case CRITERIO_PID:
-            return a->pid < b->pid; /* Menor a mayor */
+            return a->pid > b->pid; /* Para ordenar PID de Menor a Mayor */
         default:
-            return a->mem_uso > b->mem_uso;
+            return a->mem_uso < b->mem_uso;
     }
 }
 
-static int particion_criterio(Proceso** arreglo, int izquierda, int derecha, CriterioOrden criterio) {
-    Proceso* pivote = arreglo[derecha];
-    int i = (izquierda - 1);
+/* Reorganiza un subárbol con raíz en 'i' para mantener la propiedad del Heap */
+static void heapify(Proceso** arreglo, int n, int i, CriterioOrden criterio) {
+    int extremo = i;          /* Inicializamos el extremo como la raíz */
+    int izq = 2 * i + 1;      /* Hijo izquierdo en el arreglo */
+    int der = 2 * i + 2;      /* Hijo derecho en el arreglo */
 
-    for (int j = izquierda; j < derecha; j++) {
-        if (!es_estrictamente_anterior(pivote, arreglo[j], criterio)) {
-            i++;
-            intercambiar(&arreglo[i], &arreglo[j]);
-        }
+    /* Si el hijo izquierdo debe ir al final antes que la raíz actual */
+    if (izq < n && debe_ir_despues(arreglo[izq], arreglo[extremo], criterio)) {
+        extremo = izq;
     }
-    intercambiar(&arreglo[i + 1], &arreglo[derecha]);
-    return (i + 1);
-}
 
-void quicksort_procesos(Proceso** arreglo, int izquierda, int derecha, CriterioOrden criterio) {
-    if (arreglo == NULL) return;
-    if (izquierda < derecha) {
-        int piv = particion_criterio(arreglo, izquierda, derecha, criterio);
-        quicksort_procesos(arreglo, izquierda, piv - 1, criterio);
-        quicksort_procesos(arreglo, piv + 1, derecha, criterio);
+    /* Si el hijo derecho debe ir al final antes que el extremo actual */
+    if (der < n && debe_ir_despues(arreglo[der], arreglo[extremo], criterio)) {
+        extremo = der;
     }
-}
 
-/* Convierte el atributo seleccionado a un entero no negativo para Radix Sort */
-static int obtener_llave_radix(Proceso* p, CriterioOrden criterio) {
-    switch (criterio) {
-        case CRITERIO_MEMORIA:   return (int)(p->mem_uso * 10.0f + 0.5f);
-        case CRITERIO_CPU:       return (int)(p->cpu_uso * 10.0f + 0.5f);
-        case CRITERIO_TIEMPO:    return (p->tiempo_ejecucion >= 0) ? p->tiempo_ejecucion : 0;
-        case CRITERIO_PID:       return (p->pid >= 0) ? p->pid : 0;
-        default:                 return p->pid;
+    /* Si el extremo no es la raíz, intercambiamos y hundimos recursivamente */
+    if (extremo != i) {
+        intercambiar(&arreglo[i], &arreglo[extremo]);
+        heapify(arreglo, n, extremo, criterio);
     }
 }
 
-static void counting_sort_criterio(Proceso** arreglo, int total, int exp, CriterioOrden criterio) {
-    Proceso** salida = (Proceso**)malloc(total * sizeof(Proceso*));
-    if (salida == NULL) return;
-    int cubetas[10] = {0};
-
-    for (int i = 0; i < total; i++) {
-        int digito = (obtener_llave_radix(arreglo[i], criterio) / exp) % 10;
-        cubetas[digito]++;
-    }
-    for (int i = 1; i < 10; i++) {
-        cubetas[i] += cubetas[i - 1];
-    }
-    for (int i = total - 1; i >= 0; i--) {
-        int digito = (obtener_llave_radix(arreglo[i], criterio) / exp) % 10;
-        salida[cubetas[digito] - 1] = arreglo[i];
-        cubetas[digito]--;
-    }
-    for (int i = 0; i < total; i++) {
-        arreglo[i] = salida[i];
-    }
-    free(salida);
-}
-
-void radix_sort_procesos(Proceso** arreglo, int total, CriterioOrden criterio) {
+/* Algoritmo principal Heapsort */
+void heapsort_procesos(Proceso** arreglo, int total, CriterioOrden criterio) {
     if (arreglo == NULL || total <= 1) return;
 
-    int max_val = obtener_llave_radix(arreglo[0], criterio);
-    for (int i = 1; i < total; i++) {
-        int v = obtener_llave_radix(arreglo[i], criterio);
-        if (v > max_val) max_val = v;
+    /* 1. Construir el montículo (reorganizar el arreglo desde la mitad hacia arriba) */
+    for (int i = total / 2 - 1; i >= 0; i--) {
+        heapify(arreglo, total, i, criterio);
     }
 
-    for (int exp = 1; max_val / exp > 0; exp *= 10) {
-        counting_sort_criterio(arreglo, total, exp, criterio);
-    }
-
-    /* Para métricas de uso/tiempo invertimos para mostrar de Mayor a Menor */
-    if (criterio != CRITERIO_PID) {
-        for (int i = 0; i < total / 2; i++) {
-            intercambiar(&arreglo[i], &arreglo[total - 1 - i]);
-        }
+    /* 2. Extraer uno por uno los elementos de la cima del montículo hacia el final */
+    for (int i = total - 1; i > 0; i--) {
+        intercambiar(&arreglo[0], &arreglo[i]);
+        heapify(arreglo, i, 0, criterio);
     }
 }
 
-void ordenar_procesos(Proceso** arreglo, int total, AlgoritmoOrden algoritmo, CriterioOrden criterio) {
-    if (arreglo == NULL || total <= 1) return;
-
-    switch (algoritmo) {
-        case ORDEN_QUICKSORT:
-            quicksort_procesos(arreglo, 0, total - 1, criterio);
-            break;
-        case ORDEN_RADIX:
-            radix_sort_procesos(arreglo, total, criterio);
-            break;
-    }
+void ordenar_procesos(Proceso** arreglo, int total, CriterioOrden criterio) {
+    heapsort_procesos(arreglo, total, criterio);
 }
