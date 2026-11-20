@@ -2,54 +2,74 @@
 <CodeBlocks_layout_file>
 	<FileVersion major="1" minor="0" />
 	<ActiveTarget name="Debug" />
-	<File name="ordenamiento.h" open="1" top="0" tabpos="7" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+	<File name="planificador.h" open="1" top="0" tabpos="13" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="1033" topLine="0" />
+		</Cursor>
+	</File>
+	<File name="proceso.h" open="1" top="0" tabpos="2" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="1784" topLine="22" />
+		</Cursor>
+	</File>
+	<File name="planificador.c" open="1" top="1" tabpos="6" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="6493" topLine="139" />
+		</Cursor>
+	</File>
+	<File name="estructuras.h" open="1" top="0" tabpos="4" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="1817" topLine="41" />
+		</Cursor>
+	</File>
+	<File name="generador.c" open="1" top="0" tabpos="7" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="2785" topLine="41" />
+		</Cursor>
+	</File>
+	<File name="interfaz.c" open="1" top="0" tabpos="8" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="256" topLine="184" />
+		</Cursor>
+	</File>
+	<File name="ordenamiento.h" open="1" top="0" tabpos="10" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
 		<Cursor>
 			<Cursor1 position="645" topLine="0" />
 		</Cursor>
 	</File>
-	<File name="generador.c" open="1" top="0" tabpos="4" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+	<File name="ordenamiento.c" open="1" top="0" tabpos="11" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
 		<Cursor>
-			<Cursor1 position="959" topLine="5" />
+			<Cursor1 position="1252" topLine="15" />
 		</Cursor>
 	</File>
-	<File name="busqueda.c" open="1" top="0" tabpos="6" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+	<File name="main.c" open="1" top="0" tabpos="1" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
 		<Cursor>
-			<Cursor1 position="0" topLine="0" />
+			<Cursor1 position="13514" topLine="249" />
 		</Cursor>
 	</File>
-	<File name="estructuras.h" open="1" top="0" tabpos="1" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+	<File name="generador.h" open="1" top="0" tabpos="14" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
 		<Cursor>
-			<Cursor1 position="1928" topLine="26" />
+			<Cursor1 position="949" topLine="0" />
 		</Cursor>
 	</File>
-	<File name="planificador.c" open="1" top="0" tabpos="3" split="0" active="1" splitpos="0" zoom_1="-4" zoom_2="0">
+	<File name="proceso.c" open="1" top="0" tabpos="3" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
 		<Cursor>
-			<Cursor1 position="1226" topLine="0" />
+			<Cursor1 position="2593" topLine="53" />
 		</Cursor>
 	</File>
-	<File name="estructuras.c" open="1" top="0" tabpos="2" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+	<File name="busqueda.c" open="1" top="0" tabpos="9" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
 		<Cursor>
-			<Cursor1 position="4410" topLine="0" />
+			<Cursor1 position="8587" topLine="189" />
 		</Cursor>
 	</File>
-	<File name="ordenamiento.c" open="1" top="0" tabpos="8" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+	<File name="interfaz.h" open="1" top="0" tabpos="12" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
 		<Cursor>
-			<Cursor1 position="3673" topLine="68" />
+			<Cursor1 position="537" topLine="0" />
 		</Cursor>
 	</File>
-	<File name="interfaz.c" open="1" top="0" tabpos="5" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+	<File name="estructuras.c" open="1" top="0" tabpos="5" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
 		<Cursor>
-			<Cursor1 position="7541" topLine="173" />
-		</Cursor>
-	</File>
-	<File name="interfaz.h" open="1" top="1" tabpos="9" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
-		<Cursor>
-			<Cursor1 position="505" topLine="0" />
-		</Cursor>
-	</File>
-	<File name="main.c" open="0" top="0" tabpos="1" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
-		<Cursor>
-			<Cursor1 position="11135" topLine="209" />
+			<Cursor1 position="870" topLine="200" />
 		</Cursor>
 	</File>
 </CodeBlocks_layout_file>

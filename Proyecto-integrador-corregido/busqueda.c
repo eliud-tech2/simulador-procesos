@@ -5,11 +5,21 @@
 
 static const char* nombre_estado_texto(EstadoProceso estado) {
     switch (estado) {
-        case LISTO: return "LISTO";
-        case EJECUCION: return "EJECUCION";
-        case ESPERA: return "ESPERA";
+        case LISTO: return "LISTO (S)";
+        case EJECUCION: return "EJECUCION (R)";
+        case ESPERA: return "ESPERA (T)";
         case TERMINADO: return "TERMINADO";
         default: return "DESCONOCIDO";
+    }
+}
+
+static const char* texto_motivo_fin(MotivoFin motivo) {
+    switch (motivo) {
+        case FIN_COMPLETADO:    return "[COMPLETADO]   ";
+        case FIN_FORZADO_KILL:  return "[KILL MANUAL]  ";
+        case FIN_OOM_KILLER:    return "[OOM-KILLER]   ";
+        case FIN_RECHAZADO_MEM: return "[RECHAZADO MEM]";
+        default:                return "[FINALIZADO]   ";
     }
 }
 
@@ -19,16 +29,36 @@ static const char* nombre_estado_texto(EstadoProceso estado) {
 void busqueda_secuencial_estado(ListaProcesos* lista, EstadoProceso estado_buscado) {
     if (lista == NULL || lista->cabeza == NULL) return;
 
-    printf("\n--- Procesos con el estado %s (%d) ---\n", nombre_estado_texto(estado_buscado), estado_buscado);
+    printf("\n--- Procesos con el estado %s ---\n", nombre_estado_texto(estado_buscado));
     Nodo* actual = lista->cabeza;
     int encontrados = 0;
+    int c_ok = 0, c_kill = 0, c_oom = 0, c_rech = 0;
 
     while (actual != NULL) {
-        if (actual->proceso->estado == estado_buscado) {
-            printf("- PID: %d | Nombre: %-15s | CPU: %5.1f%% | RAM: %5.1f%% | Ciclos: %d/%d\n",
-                   actual->proceso->pid, actual->proceso->nombre,
-                   actual->proceso->cpu_uso, actual->proceso->mem_uso,
-                   actual->proceso->tiempo_ejecucion, actual->proceso->tiempo_rafaga);
+        Proceso* p = actual->proceso;
+        if (p->estado == estado_buscado) {
+            if (estado_buscado == TERMINADO) {
+                int retorno = (p->ciclo_fin >= p->ciclo_llegada) ? (p->ciclo_fin - p->ciclo_llegada) : 0;
+                int espera = retorno - p->quantums_usados;
+                if (espera < 0) espera = 0;
+
+                if (p->motivo_fin == FIN_COMPLETADO) c_ok++;
+                else if (p->motivo_fin == FIN_FORZADO_KILL) c_kill++;
+                else if (p->motivo_fin == FIN_OOM_KILLER) c_oom++;
+                else if (p->motivo_fin == FIN_RECHAZADO_MEM) c_rech++;
+
+                if (p->motivo_fin == FIN_RECHAZADO_MEM) {
+                    printf("- PID:%4d | Q%d | %-14s | %s | Intento en Ciclo #%d (Sin RAM disponible)\n",
+                           p->pid, p->prioridad, p->nombre, texto_motivo_fin(p->motivo_fin), p->ciclo_llegada);
+                } else {
+                    printf("- PID:%4d | Q%d | %-14s | %s | Q_use:%2d | #%d->#%d (Retorno:%d, Esp:%d)\n",
+                           p->pid, p->prioridad, p->nombre, texto_motivo_fin(p->motivo_fin),
+                           p->quantums_usados, p->ciclo_llegada, p->ciclo_fin, retorno, espera);
+                }
+            } else {
+                printf("- PID: %d | Q%d | Nombre: %-15s | CPU: %5.1f%% | RAM: %5.1f%% | Quantums: %d\n",
+                       p->pid, p->prioridad, p->nombre, p->cpu_uso, p->mem_uso, p->quantums_usados);
+            }
             encontrados++;
         }
         actual = actual->siguiente; /* Salta al siguiente proceso de la lista */
@@ -36,6 +66,9 @@ void busqueda_secuencial_estado(ListaProcesos* lista, EstadoProceso estado_busca
 
     if (encontrados == 0) {
         printf("No se encontraron procesos en ese estado.\n");
+    } else if (estado_buscado == TERMINADO) {
+        printf("\nResumen -> Total: %d | Completados: %d | Kill manual: %d | OOM-Killer: %d | Rechazados(Mem): %d\n",
+               encontrados, c_ok, c_kill, c_oom, c_rech);
     } else {
         printf("\nTotal encontrados: %d\n", encontrados);
     }
@@ -64,9 +97,10 @@ void busqueda_secuencial_nombre(ListaProcesos* lista, const char* nombre_buscado
 
     while (actual != NULL) {
         if (strcmp(actual->proceso->nombre, nombre_buscado) == 0) {
-            printf("- PID: %d | RAM: %.1f%% | Estado: %s\n",
-                   actual->proceso->pid,
-                   actual->proceso->mem_uso, nombre_estado_texto(actual->proceso->estado));
+            printf("- PID: %d | Q%d | RAM: %.1f%% | Estado: %s | Quantums: %d\n",
+                   actual->proceso->pid, actual->proceso->prioridad,
+                   actual->proceso->mem_uso, nombre_estado_texto(actual->proceso->estado),
+                   actual->proceso->quantums_usados);
             encontrados++;
         }
         actual = actual->siguiente;
@@ -145,17 +179,18 @@ void buscar_hash_nombre(TablaHash* th, const char* nombre_buscado) {
     printf("\n--- Resultados Hash para el proceso '%s' (Indice #%u) ---\n", nombre_buscado, indice);
     while (actual != NULL) {
         if (strcmp(actual->proceso->nombre, nombre_buscado) == 0) {
-            printf("- PID: %d | CPU: %.1f%% | RAM: %.1f%% | Estado: %s\n",
-                   actual->proceso->pid,
-                   actual->proceso->cpu_uso, actual->proceso->mem_uso,
-                   nombre_estado_texto(actual->proceso->estado));
+            Proceso* p = actual->proceso;
+            printf("- PID: %d | Q%d | CPU: %.1f%% | RAM: %.1f%% | Quantums: %d | Estado: %s %s\n",
+                   p->pid, p->prioridad, p->cpu_uso, p->mem_uso,
+                   p->quantums_usados, nombre_estado_texto(p->estado),
+                   (p->estado == TERMINADO) ? texto_motivo_fin(p->motivo_fin) : "");
             encontrados++;
         }
         actual = actual->siguiente;
     }
 
     if (encontrados == 0) {
-        printf("No hay procesos activos llamados '%s'.\n", nombre_buscado);
+        printf("No hay procesos registrados llamados '%s'.\n", nombre_buscado);
     } else {
         printf("Instancias totales encontradas: %d\n", encontrados);
     }

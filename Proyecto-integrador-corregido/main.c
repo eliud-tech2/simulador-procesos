@@ -16,16 +16,28 @@ static void limpiar_buffer_entrada(void) {
     while ((c = getchar()) != '\n' && c != EOF);
 }
 
-static void mostrar_detalle_proceso(Proceso* p) {
+static void mostrar_detalle_proceso(Proceso* p, int ciclo_actual) {
     const char* est = "S (Sleeping / Listo)";
     if (p->estado == EJECUCION) est = "R (Running / Ejecutando)";
     else if (p->estado == ESPERA) est = "T (Stopped / Suspendido)";
-    else if (p->estado == TERMINADO) est = "Z (Terminated)";
+    else if (p->estado == TERMINADO) {
+        if (p->motivo_fin == FIN_OOM_KILLER) est = "TERMINADO [OOM-KILLER]";
+        else if (p->motivo_fin == FIN_RECHAZADO_MEM) est = "TERMINADO [RECHAZADO MEM]";
+        else if (p->motivo_fin == FIN_FORZADO_KILL) est = "TERMINADO [KILL MANUAL]";
+        else est = "TERMINADO [COMPLETADO]";
+    }
+
+    int fin_ref = (p->ciclo_fin > 0) ? p->ciclo_fin : ciclo_actual;
+    int retorno = fin_ref - p->ciclo_llegada;
+    if (retorno < 0) retorno = 0;
 
     printf("\n[PROCESO LOCALIZADO]\n");
-    printf(" - PID: %d | Command: /usr/bin/%s | State: %s\n", p->pid, p->nombre, est);
-    printf(" - CPU%%: %.1f%% | MEM%%: %.1f%% | Ciclos: %d/%d\n",
-           p->cpu_uso, p->mem_uso, p->tiempo_ejecucion, p->tiempo_rafaga);
+    printf(" - PID: %d | Cola: Q%d | Command: /usr/bin/%s | State: %s\n",
+           p->pid, p->prioridad, p->nombre, est);
+    printf(" - CPU%%: %.1f%% | MEM%%: %.1f%% | Ciclos CPU: %d/%d | Quantums usados: %d\n",
+           p->cpu_uso, p->mem_uso, p->tiempo_ejecucion, p->tiempo_rafaga, p->quantums_usados);
+    printf(" - Llegada: Ciclo #%d | Fin: %s%d | Tiempo en sistema: %d ciclos\n",
+           p->ciclo_llegada, (p->ciclo_fin > 0) ? "Ciclo #" : "Activo en #", fin_ref, retorno);
 }
 
 int main() {
@@ -33,33 +45,49 @@ int main() {
 
     ListaProcesos mi_lista;
     inicializar_lista(&mi_lista);
-    ColaListos mi_cola_rr;
-    inicializar_cola(&mi_cola_rr);
+
+    /* 3 Colas FIFO para Planificación de Colas Múltiples con Prioridad (0=Alta, 1=Media, 2=Baja) */
+    ColaListos colas[NUM_COLAS_PRIORIDAD];
+    for (int i = 0; i < NUM_COLAS_PRIORIDAD; i++) {
+        inicializar_cola(&colas[i]);
+    }
+
     ArbolPID mi_arbol;
     inicializar_arbol(&mi_arbol);
     TablaHash mi_hash;
     inicializar_tabla_hash(&mi_hash);
 
     int quantum_sistema = 20;
+    int ciclos_envejecimiento = 10; /* Cada 10 ciclos esperando sin turno sube un nivel de prioridad */
     int ciclo = 1;
     int contador_pid = 100;
     Proceso* proceso_en_cpu = NULL;
-
     CriterioOrden orden_criterio = CRITERIO_MEMORIA;
+
+    float ram_gb = 0.80f;
+    float swp_gb = 0.00f;
+    int admision_abierta = 1;
+    char mensaje_oom[120] = "";
 
     /* Semilla inicial de procesos para que la tabla arranque poblada */
     for (int i = 0; i < 5; i++) {
-        intentar_crear_proceso_sistema(&mi_lista, &mi_cola_rr, &mi_arbol, &mi_hash, &contador_pid);
+        intentar_crear_proceso_sistema(&mi_lista, colas, &mi_arbol, &mi_hash, &contador_pid, ciclo, 1);
     }
 
     while (1) {
-        /* 1. Logica invisible del Sistema Operativo (Planificador Round Robin) */
-        ejecutar_planificador_rr(&mi_cola_rr, quantum_sistema, &proceso_en_cpu);
-        intentar_crear_proceso_sistema(&mi_lista, &mi_cola_rr, &mi_arbol, &mi_hash, &contador_pid);
+        /* 1. Planificador Colas Múltiples + Envejecimiento (Aging) + Control de Admisión y OOM Killer */
+        ejecutar_planificador_multicola(colas, quantum_sistema, &proceso_en_cpu, ciclo);
+        aplicar_envejecimiento(&mi_lista, colas, ciclos_envejecimiento);
+        admision_abierta = verificar_memoria_y_oom(&mi_lista, colas, &proceso_en_cpu, ciclo,
+                                                   &ram_gb, &swp_gb, mensaje_oom, sizeof(mensaje_oom));
+        intentar_crear_proceso_sistema(&mi_lista, colas, &mi_arbol, &mi_hash, &contador_pid,
+                                       ciclo, admision_abierta);
+        admision_abierta = verificar_memoria_y_oom(&mi_lista, colas, &proceso_en_cpu, ciclo,
+                                                   &ram_gb, &swp_gb, mensaje_oom, sizeof(mensaje_oom));
 
-        /* 2. Visualizacion en pantalla (modo Linux htop con Heapsort) */
-        dibujar_interfaz_htop(&mi_lista, &mi_cola_rr, ciclo,
-                              orden_criterio, quantum_sistema);
+        /* 2. Visualizacion en pantalla (modo Linux htop) */
+        dibujar_interfaz_htop(&mi_lista, colas, ciclo, orden_criterio, quantum_sistema,
+                              ram_gb, swp_gb, admision_abierta, mensaje_oom);
 
         /* 3. Pausa interactiva de 1.5 segundos que vigila las teclas de la barra htop */
         int tiempo_espera = 0;
@@ -70,7 +98,9 @@ int main() {
                 if (tecla == '0') {
                     consola_limpiar();
                     printf("Liberando memoria y saliendo de htop de forma segura...\n");
-                    liberar_cola(&mi_cola_rr);
+                    for (int i = 0; i < NUM_COLAS_PRIORIDAD; i++) {
+                        liberar_cola(&colas[i]);
+                    }
                     liberar_arbol(mi_arbol.raiz);
                     liberar_tabla_hash(&mi_hash);
                     liberar_lista(&mi_lista, 1);
@@ -101,7 +131,7 @@ int main() {
                             heapsort_procesos(arr, mi_lista.tamano, CRITERIO_PID);
                             Proceso* res = busqueda_binaria_pid(arr, mi_lista.tamano, pid_buscado);
                             if (arr != NULL) free(arr);
-                            if (res != NULL) mostrar_detalle_proceso(res);
+                            if (res != NULL) mostrar_detalle_proceso(res, ciclo);
                             else printf("\nNo se encontro ningun proceso con el PID %d.\n", pid_buscado);
                         }
                     } else {
@@ -160,10 +190,11 @@ int main() {
                             } else if (op_est == 2) {
                                 if (objetivo->estado == ESPERA) {
                                     reanudar_proceso(objetivo);
-                                    if (!esta_en_cola(&mi_cola_rr, objetivo->pid)) {
-                                        encolar(&mi_cola_rr, objetivo);
+                                    if (!esta_en_cola(&colas[objetivo->prioridad], objetivo->pid)) {
+                                        encolar(&colas[objetivo->prioridad], objetivo);
                                     }
-                                    printf("PID %d (%s) -> State S (Reanudado).\n", pid_obj, objetivo->nombre);
+                                    printf("PID %d (%s) -> State S (Reanudado en Q%d).\n",
+                                           pid_obj, objetivo->nombre, objetivo->prioridad);
                                 } else {
                                     printf("El PID %d no esta suspendido.\n", pid_obj);
                                 }
@@ -191,7 +222,7 @@ int main() {
                 else if (tecla == '5') {
                     consola_limpiar();
                     printf("==========================================================================\n");
-                    printf(" HISTORIAL DE PROCESOS FINALIZADOS (TERMINATED / ZOMBIE)\n");
+                    printf("HISTORIAL DE PROCESOS FINALIZADOS\n");
                     printf("==========================================================================\n");
                     busqueda_secuencial_estado(&mi_lista, TERMINADO);
                     printf("\nPresiona cualquier tecla para volver a htop...");
@@ -207,8 +238,8 @@ int main() {
                         if (objetivo == NULL) objetivo = busqueda_secuencial_pid(&mi_lista, pid_kill);
 
                         if (objetivo != NULL && objetivo->estado != TERMINADO) {
-                            terminar_proceso(objetivo);
-                            eliminar_de_cola(&mi_cola_rr, pid_kill);
+                            terminar_proceso(objetivo, ciclo, FIN_FORZADO_KILL);
+                            eliminar_de_cola(&colas[objetivo->prioridad], pid_kill);
                             if (proceso_en_cpu == objetivo) proceso_en_cpu = NULL;
                             printf("Senal SIGTERM enviada: PID %d (%s) finalizado.\n", pid_kill, objetivo->nombre);
                         } else {
@@ -219,6 +250,13 @@ int main() {
                     }
                     printf("Presiona una tecla para continuar...");
                     consola_getch();
+                    break;
+                }
+                else if (tecla == '7') {
+                    int agregados = inyectar_carga_estres(&mi_lista, colas, &mi_arbol, &mi_hash,
+                                                          &contador_pid, ciclo, 8);
+                    printf("\n[Stress] Inyectados %d procesos pesados para probar Swap y OOM Killer...\n", agregados);
+                    consola_sleep(700);
                     break;
                 }
             }

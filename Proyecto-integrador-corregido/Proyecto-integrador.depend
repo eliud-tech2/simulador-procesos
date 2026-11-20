@@ -101,7 +101,7 @@
 	<stdlib.h>
 	"ordenamiento.h"
 
-1794890944 source:c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\busqueda.c
+1795141402 source:c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\busqueda.c
 	<stdio.h>
 	<stdlib.h>
 	<string.h>
@@ -110,10 +110,10 @@
 1794890934 c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\busqueda.h
 	"estructuras.h"
 
-1794890906 c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\estructuras.h
+1795047121 c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\estructuras.h
 	"proceso.h"
 
-1794890900 c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\proceso.h
+1795142719 c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\proceso.h
 
 1794890326 source:c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\consola.c
 	<stdio.h>
@@ -132,35 +132,38 @@
 	<stdlib.h>
 	"estructuras.h"
 
-1794890908 source:c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\generador.c
+1795141214 source:c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\generador.c
 	<stdio.h>
 	<stdlib.h>
 	"generador.h"
 	"proceso.h"
 
-1794890908 c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\generador.h
+1795141123 c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\generador.h
 	"estructuras.h"
 	"busqueda.h"
 
-1794966052 source:c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\interfaz.c
+1795141488 source:c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\interfaz.c
 	<stdio.h>
 	<stdlib.h>
+	<string.h>
 	<windows.h>
 	"interfaz.h"
 	"consola.h"
 	"ordenamiento.h"
 
-1794890326 c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\planificador.h
+1795141249 c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\planificador.h
 	"estructuras.h"
+	"generador.h"
 
 1794965952 c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\ordenamiento.h
 	"estructuras.h"
 
-1794966027 c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\interfaz.h
+1795141451 c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\interfaz.h
 	"estructuras.h"
+	"generador.h"
 	"ordenamiento.h"
 
-1794966156 source:c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\main.c
+1795141552 source:c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\main.c
 	<stdio.h>
 	<stdlib.h>
 	<string.h>
@@ -174,18 +177,19 @@
 	"busqueda.h"
 	"interfaz.h"
 
-1794965986 source:c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\ordenamiento.c
+1795048858 source:c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\ordenamiento.c
 	<stdio.h>
 	<stdlib.h>
 	"ordenamiento.h"
 
-1794890326 source:c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\planificador.c
+1795141287 source:c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\planificador.c
 	<stdio.h>
 	<stdlib.h>
+	<string.h>
 	"planificador.h"
 	"proceso.h"
 
-1794890904 source:c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\proceso.c
+1795141094 source:c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\proceso.c
 	<stdio.h>
 	<stdlib.h>
 	<string.h>

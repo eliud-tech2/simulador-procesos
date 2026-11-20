@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #ifdef _WIN32
 #include <windows.h>
 #endif
@@ -18,8 +19,8 @@ static void fijar_color(int color_win) {
         case 12:  printf("\033[91m"); break;     /* Rojo */
         case 11:  printf("\033[96m"); break;     /* Cyan */
         case 8:   printf("\033[90m"); break;     /* Gris */
-        case 32:  printf("\033[30;42m"); break;  /* Negro sobre fondo verde (franja htop) */
-        case 176: printf("\033[30;46m"); break;  /* Negro sobre fondo cyan (teclas htop) */
+        case 32:  printf("\033[30;42m"); break;  /* Negro sobre fondo verde */
+        case 176: printf("\033[30;46m"); break;  /* Negro sobre fondo cyan */
         default:  printf("\033[0m");  break;
     }
 #endif
@@ -68,21 +69,16 @@ static const char* texto_crit_orden(CriterioOrden c) {
     }
 }
 
-void dibujar_interfaz(ListaProcesos* lista, ColaListos* cola, int ciclo) {
-    dibujar_interfaz_htop(lista, cola, ciclo, CRITERIO_MEMORIA, 20);
-}
-
-void dibujar_interfaz_htop(ListaProcesos* lista, ColaListos* cola, int ciclo,
-                           CriterioOrden crit_orden, int quantum) {
+void dibujar_interfaz_htop(ListaProcesos* lista, ColaListos colas[NUM_COLAS_PRIORIDAD],
+                           int ciclo, CriterioOrden crit_orden, int quantum,
+                           float ram_gb, float swp_gb, int admision_abierta,
+                           const char* mensaje_oom) {
     consola_limpiar();
 
     float cpu_total_1 = 0.0f;
     float cpu_total_2 = 0.0f;
-    float ram_usada_gb = 0.8f;
-
     int total_activos = 0;
     int total_ejecutando = 0;
-    int total_espera = 0;
     int total_terminados = 0;
 
     Nodo* temp = lista->cabeza;
@@ -91,13 +87,10 @@ void dibujar_interfaz_htop(ListaProcesos* lista, ColaListos* cola, int ciclo,
         Proceso* p = temp->proceso;
         if (p->estado != TERMINADO) {
             total_activos++;
-            ram_usada_gb += (p->mem_uso / 100.0f) * 1.2f;
             if (p->estado == EJECUCION) {
                 total_ejecutando++;
                 cpu_total_1 += p->cpu_uso;
-            } else if (p->estado == ESPERA) {
-                total_espera++;
-            } else {
+            } else if (p->estado == LISTO) {
                 if (idx_cpu % 2 == 0) cpu_total_2 += p->cpu_uso;
                 else cpu_total_1 += p->cpu_uso * 0.3f;
                 idx_cpu++;
@@ -110,20 +103,21 @@ void dibujar_interfaz_htop(ListaProcesos* lista, ColaListos* cola, int ciclo,
 
     if (cpu_total_1 > 100.0f) cpu_total_1 = 98.5f;
     if (cpu_total_2 > 100.0f) cpu_total_2 = 96.0f;
-    if (ram_usada_gb > 7.39f) ram_usada_gb = 7.25f;
-    float ram_porcentaje = (ram_usada_gb / 7.39f) * 100.0f;
+
+    float ram_porcentaje = (ram_gb / 7.39f) * 100.0f;
+    float swp_porcentaje = (swp_gb / 2.00f) * 100.0f;
 
     int seg_totales = (int)(ciclo * 1.5f);
     int up_min = (seg_totales / 60) % 60;
     int up_seg = seg_totales % 60;
     float load_1 = (cpu_total_1 + cpu_total_2) / 100.0f;
 
-    /* Encabezado superior de doble columna idéntico a htop de Linux */
+    /* Encabezado superior de doble columna estilo htop con Colas Múltiples y Swap funcional */
     fijar_color(11); printf("  0"); restaurar_color();
     dibujar_barra_con_color(cpu_total_1);
     printf(" %5.1f%%   ", cpu_total_1);
     fijar_color(11); printf("Tasks: "); restaurar_color();
-    printf("%d, %d thr; ", total_activos, cola->tamano);
+    printf("%d (Q0:%d Q1:%d Q2:%d); ", total_activos, colas[0].tamano, colas[1].tamano, colas[2].tamano);
     fijar_color(10); printf("%d running\n", total_ejecutando); restaurar_color();
 
     fijar_color(11); printf("  1"); restaurar_color();
@@ -134,15 +128,27 @@ void dibujar_interfaz_htop(ListaProcesos* lista, ColaListos* cola, int ciclo,
 
     fijar_color(11); printf("Mem"); restaurar_color();
     dibujar_barra_con_color(ram_porcentaje);
-    printf(" %.2fG/7.39G  ", ram_usada_gb);
+    printf(" %.2fG/7.39G  ", ram_gb);
     fijar_color(11); printf("Uptime: "); restaurar_color();
     printf("00:%02d:%02d (Ciclo #%d)\n", up_min, up_seg, ciclo);
 
     fijar_color(11); printf("Swp"); restaurar_color();
-    dibujar_barra_con_color(0.0f);
-    printf(" 0.00G/2.00G  ");
+    dibujar_barra_con_color(swp_porcentaje);
+    printf(" %.2fG/2.00G  ", swp_gb);
     fijar_color(11); printf("Sched: "); restaurar_color();
-    printf("RoundRobin(Q=%d) | Heapsort(%s)\n\n", quantum, texto_crit_orden(crit_orden));
+    printf("MLQ+RR(Q=%d) | Heapsort(%s)\n", quantum, texto_crit_orden(crit_orden));
+
+    if (!admision_abierta) {
+        fijar_color(14);
+        printf("[CONTROL DE ADMISION] Memoria saturada: ingreso de procesos nuevos pausado.\n");
+        restaurar_color();
+    }
+    if (mensaje_oom != NULL && strlen(mensaje_oom) > 0) {
+        fijar_color(12);
+        printf("[%s]\n", mensaje_oom);
+        restaurar_color();
+    }
+    printf("\n");
 
     Proceso** arreglo = convertir_lista_a_arreglo(lista);
     if (arreglo != NULL && lista->tamano > 0) {
@@ -151,7 +157,7 @@ void dibujar_interfaz_htop(ListaProcesos* lista, ColaListos* cola, int ciclo,
 
     /* Franja de columnas con fondo verde y letras negras estilo htop */
     fijar_color(32);
-    printf("  PID USER      State  CPU%%  MEM%%     TIME+  Command                            ");
+    printf("  PID USER      PRI State  CPU%%  MEM%%  Q_USE    TIME+  Command                   ");
     restaurar_color();
     printf("\n");
 
@@ -168,17 +174,20 @@ void dibujar_interfaz_htop(ListaProcesos* lista, ColaListos* cola, int ciclo,
 
         if (p->estado == EJECUCION) {
             fijar_color(10);
-            printf("%5d %-9s   R   %5.1f %5.1f  %2d:%02d.%02d  /usr/bin/%s\n",
-                   p->pid, user, p->cpu_uso, p->mem_uso, mins, secs, cent, p->nombre);
+            printf("%5d %-9s Q%d    R   %5.1f %5.1f   %3d   %2d:%02d.%02d  /usr/bin/%s\n",
+                   p->pid, user, p->prioridad, p->cpu_uso, p->mem_uso,
+                   p->quantums_usados, mins, secs, cent, p->nombre);
             restaurar_color();
         } else if (p->estado == ESPERA) {
             fijar_color(11);
-            printf("%5d %-9s   T   %5.1f %5.1f  %2d:%02d.%02d  /usr/bin/%s\n",
-                   p->pid, user, p->cpu_uso, p->mem_uso, mins, secs, cent, p->nombre);
+            printf("%5d %-9s Q%d    T   %5.1f %5.1f   %3d   %2d:%02d.%02d  /usr/bin/%s\n",
+                   p->pid, user, p->prioridad, p->cpu_uso, p->mem_uso,
+                   p->quantums_usados, mins, secs, cent, p->nombre);
             restaurar_color();
         } else {
-            printf("%5d %-9s   S   %5.1f %5.1f  %2d:%02d.%02d  /usr/bin/%s\n",
-                   p->pid, user, p->cpu_uso, p->mem_uso, mins, secs, cent, p->nombre);
+            printf("%5d %-9s Q%d    S   %5.1f %5.1f   %3d   %2d:%02d.%02d  /usr/bin/%s\n",
+                   p->pid, user, p->prioridad, p->cpu_uso, p->mem_uso,
+                   p->quantums_usados, mins, secs, cent, p->nombre);
         }
     }
 
@@ -186,10 +195,11 @@ void dibujar_interfaz_htop(ListaProcesos* lista, ColaListos* cola, int ciclo,
     printf("\n");
     fijar_color(11);  printf("1"); fijar_color(176); printf("Search ");
     fijar_color(11);  printf("2"); fijar_color(176); printf("SortBy ");
-    fijar_color(11);  printf("3"); fijar_color(176); printf("State(S/T) ");
+    fijar_color(11);  printf("3"); fijar_color(176); printf("State ");
     fijar_color(11);  printf("4"); fijar_color(176); printf("Quantum ");
     fijar_color(11);  printf("5"); fijar_color(176); printf("Terminated(%d) ", total_terminados);
     fijar_color(11);  printf("6"); fijar_color(176); printf("Kill ");
+    fijar_color(11);  printf("7"); fijar_color(176); printf("Stress ");
     fijar_color(11);  printf("0"); fijar_color(176); printf("Quit ");
     restaurar_color();
     printf("\n");

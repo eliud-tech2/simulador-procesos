@@ -3,10 +3,16 @@
 #include "estructuras.h" /* Necesita conocer la Lista y la Cola para inyectar los procesos */
 #include "busqueda.h"
 
-/* Simula usuarios o programas abriendo aplicaciones al azar */
-void intentar_crear_proceso_nuevo(ListaProcesos* lista, ColaListos* cola, int* contador_pid);
+#define NUM_COLAS_PRIORIDAD 3 /* 0 = Alta, 1 = Media, 2 = Baja */
 
-/* Versión integrada: registra el proceso en Lista, Cola, Árbol BST y Tabla Hash */
-void intentar_crear_proceso_sistema(ListaProcesos* lista, ColaListos* cola, ArbolPID* arbol, TablaHash* th, int* contador_pid);
+/* Versión integrada con Colas Múltiples, control de admisión de RAM/Swap y ciclo actual */
+void intentar_crear_proceso_sistema(ListaProcesos* lista, ColaListos colas[NUM_COLAS_PRIORIDAD],
+                                    ArbolPID* arbol, TablaHash* th, int* contador_pid,
+                                    int ciclo_actual, int permitir_admision);
+
+/* Inyecta una ráfaga de procesos pesados para demostrar Swap, control de admisión y OOM Killer */
+int inyectar_carga_estres(ListaProcesos* lista, ColaListos colas[NUM_COLAS_PRIORIDAD],
+                          ArbolPID* arbol, TablaHash* th, int* contador_pid,
+                          int ciclo_actual, int cantidad);
 
 #endif

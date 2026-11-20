@@ -4,7 +4,7 @@
 #include "proceso.h"
 
 /* Construye un proceso nuevo reservando memoria RAM */
-Proceso* crear_proceso(int pid, const char* nombre, float mem_uso) {
+Proceso* crear_proceso(int pid, const char* nombre, int prioridad, float mem_uso, int ciclo_actual) {
     // 1. Pedimos la memoria exacta que pesa un struct Proceso
     Proceso* nuevo = (Proceso*)malloc(sizeof(Proceso));
 
@@ -21,11 +21,20 @@ Proceso* crear_proceso(int pid, const char* nombre, float mem_uso) {
     strncpy(nuevo->nombre, nombre, 49);
     nuevo->nombre[49] = '\0';
 
+    if (prioridad < 0) prioridad = 0;
+    if (prioridad > 2) prioridad = 2;
+    nuevo->prioridad = prioridad;
+
     nuevo->cpu_uso = 0.0f; // Nace sin usar CPU, el planificador se lo subirá
     nuevo->mem_uso = mem_uso;
     nuevo->estado = LISTO; // Todo proceso nuevo entra directamente a la fila de LISTOS
+    nuevo->motivo_fin = FIN_NINGUNO;
     nuevo->tiempo_ejecucion = 0;
     nuevo->tiempo_rafaga = 40 + (rand() % 61); // Ráfaga estimada entre 40 y 100 ciclos
+    nuevo->quantums_usados = 0;
+    nuevo->ciclos_esperando = 0;
+    nuevo->ciclo_llegada = ciclo_actual;
+    nuevo->ciclo_fin = 0;
 
     return nuevo;
 }
@@ -45,12 +54,17 @@ void reanudar_proceso(Proceso* p) {
     }
 }
 
-/* Simula la muerte lógica del proceso liberando sus recursos */
-void terminar_proceso(Proceso* p) {
+/* Simula la muerte lógica del proceso registrando el motivo y liberando sus recursos */
+void terminar_proceso(Proceso* p, int ciclo_actual, MotivoFin motivo) {
     if (p != NULL) {
         p->estado = TERMINADO;
+        p->motivo_fin = motivo;
         p->cpu_uso = 0.0f;
         p->mem_uso = 0.0f;
+        p->ciclos_esperando = 0;
+        if (p->ciclo_fin == 0) {
+            p->ciclo_fin = ciclo_actual;
+        }
     }
 }
 
