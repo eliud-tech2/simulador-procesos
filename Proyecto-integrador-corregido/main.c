@@ -57,7 +57,7 @@ int main() {
     TablaHash mi_hash;
     inicializar_tabla_hash(&mi_hash);
 
-    int quantum_sistema = 20;
+    int quantum_sistema = 10;       /* Quantum base de Q0 (Q1=20, Q2=40) */
     int ciclos_envejecimiento = 10; /* Cada 10 ciclos esperando sin turno sube un nivel de prioridad */
     int ciclo = 1;
     int contador_pid = 100;
@@ -75,13 +75,11 @@ int main() {
     }
 
     while (1) {
-        /* 1. Planificador Colas Múltiples + Envejecimiento (Aging) + Control de Admisión y OOM Killer */
-        ejecutar_planificador_multicola(colas, quantum_sistema, &proceso_en_cpu, ciclo);
-        aplicar_envejecimiento(&mi_lista, colas, ciclos_envejecimiento);
-        admision_abierta = verificar_memoria_y_oom(&mi_lista, colas, &proceso_en_cpu, ciclo,
-                                                   &ram_gb, &swp_gb, mensaje_oom, sizeof(mensaje_oom));
+        /* 1. Llegadas y envejecimiento ANTES de despachar (prioridad estricta Q0->Q1->Q2) */
         intentar_crear_proceso_sistema(&mi_lista, colas, &mi_arbol, &mi_hash, &contador_pid,
                                        ciclo, admision_abierta);
+        aplicar_envejecimiento(&mi_lista, colas, ciclos_envejecimiento);
+        ejecutar_planificador_multicola(colas, quantum_sistema, &proceso_en_cpu, ciclo);
         admision_abierta = verificar_memoria_y_oom(&mi_lista, colas, &proceso_en_cpu, ciclo,
                                                    &ram_gb, &swp_gb, mensaje_oom, sizeof(mensaje_oom));
 
@@ -184,16 +182,18 @@ int main() {
                             if (objetivo == NULL) {
                                 printf("Error: No existe el PID %d.\n", pid_obj);
                             } else if (op_est == 1) {
+                                eliminar_de_cola(&colas[objetivo->prioridad], objetivo->pid);
                                 suspender_proceso(objetivo);
                                 if (proceso_en_cpu == objetivo) proceso_en_cpu = NULL;
                                 printf("PID %d (%s) -> State T (Suspendido).\n", pid_obj, objetivo->nombre);
                             } else if (op_est == 2) {
                                 if (objetivo->estado == ESPERA) {
                                     reanudar_proceso(objetivo);
+                                    objetivo->ciclos_esperando = 0;
                                     if (!esta_en_cola(&colas[objetivo->prioridad], objetivo->pid)) {
                                         encolar(&colas[objetivo->prioridad], objetivo);
                                     }
-                                    printf("PID %d (%s) -> State S (Reanudado en Q%d).\n",
+                                    printf("PID %d (%s) -> State S (Reanudado al final de Q%d).\n",
                                            pid_obj, objetivo->nombre, objetivo->prioridad);
                                 } else {
                                     printf("El PID %d no esta suspendido.\n", pid_obj);
@@ -206,13 +206,15 @@ int main() {
                     break;
                 }
                 else if (tecla == '4') {
-                    printf("\n[Quantum RR] Actual=%d | Nuevo quantum (5 - 50): ", quantum_sistema);
+                    printf("\n[Quantum Base Q0] Actual=%d (Q1=%d, Q2=%d) | Nuevo quantum base (5 - 25): ",
+                           quantum_sistema, quantum_sistema * 2, quantum_sistema * 4);
                     int nq = quantum_sistema;
-                    if (scanf("%d", &nq) == 1 && nq >= 5 && nq <= 50) {
+                    if (scanf("%d", &nq) == 1 && nq >= 5 && nq <= 25) {
                         quantum_sistema = nq;
-                        printf("Quantum actualizado a %d.\n", quantum_sistema);
+                        printf("Quantums actualizados -> Q0=%d, Q1=%d, Q2=%d.\n",
+                               quantum_sistema, quantum_sistema * 2, quantum_sistema * 4);
                     } else {
-                        printf("Valor invalido. Se mantiene en %d.\n", quantum_sistema);
+                        printf("Valor invalido. Se mantiene en Q0=%d.\n", quantum_sistema);
                     }
                     limpiar_buffer_entrada();
                     printf("Presiona una tecla para continuar...");

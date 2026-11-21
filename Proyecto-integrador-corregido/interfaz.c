@@ -28,7 +28,7 @@ static void fijar_color(int color_win) {
 
 static void restaurar_color() {
 #ifdef _WIN32
-    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 7); // Blanco/Gris por defecto
+    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 7);
 #else
     printf("\033[0m");
 #endif
@@ -42,13 +42,13 @@ static void dibujar_barra_con_color(float porcentaje) {
 
     printf("[");
     if (porcentaje < 40.0f) {
-        fijar_color(10); // Verde suave
+        fijar_color(10);
     } else if (porcentaje < 70.0f) {
-        fijar_color(14); // Amarillo
+        fijar_color(14);
     } else if (porcentaje < 88.0f) {
-        fijar_color(6);  // Naranja
+        fijar_color(6);
     } else {
-        fijar_color(12); // Rojo peligro
+        fijar_color(12);
     }
 
     for (int i = 0; i < total_bloques; i++) {
@@ -59,20 +59,11 @@ static void dibujar_barra_con_color(float porcentaje) {
     printf("]");
 }
 
-static const char* texto_crit_orden(CriterioOrden c) {
-    switch (c) {
-        case CRITERIO_MEMORIA: return "MEM%";
-        case CRITERIO_CPU:     return "CPU%";
-        case CRITERIO_TIEMPO:  return "TIME+";
-        case CRITERIO_PID:     return "PID";
-        default:               return "MEM%";
-    }
-}
-
 void dibujar_interfaz_htop(ListaProcesos* lista, ColaListos colas[NUM_COLAS_PRIORIDAD],
                            int ciclo, CriterioOrden crit_orden, int quantum,
                            float ram_gb, float swp_gb, int admision_abierta,
                            const char* mensaje_oom) {
+    (void)quantum;
     consola_limpiar();
 
     float cpu_total_1 = 0.0f;
@@ -82,7 +73,6 @@ void dibujar_interfaz_htop(ListaProcesos* lista, ColaListos colas[NUM_COLAS_PRIO
     int total_terminados = 0;
 
     Nodo* temp = lista->cabeza;
-    int idx_cpu = 0;
     while (temp != NULL) {
         Proceso* p = temp->proceso;
         if (p->estado != TERMINADO) {
@@ -90,10 +80,6 @@ void dibujar_interfaz_htop(ListaProcesos* lista, ColaListos colas[NUM_COLAS_PRIO
             if (p->estado == EJECUCION) {
                 total_ejecutando++;
                 cpu_total_1 += p->cpu_uso;
-            } else if (p->estado == LISTO) {
-                if (idx_cpu % 2 == 0) cpu_total_2 += p->cpu_uso;
-                else cpu_total_1 += p->cpu_uso * 0.3f;
-                idx_cpu++;
             }
         } else {
             total_terminados++;
@@ -102,7 +88,6 @@ void dibujar_interfaz_htop(ListaProcesos* lista, ColaListos colas[NUM_COLAS_PRIO
     }
 
     if (cpu_total_1 > 100.0f) cpu_total_1 = 98.5f;
-    if (cpu_total_2 > 100.0f) cpu_total_2 = 96.0f;
 
     float ram_porcentaje = (ram_gb / 7.39f) * 100.0f;
     float swp_porcentaje = (swp_gb / 2.00f) * 100.0f;
@@ -110,9 +95,8 @@ void dibujar_interfaz_htop(ListaProcesos* lista, ColaListos colas[NUM_COLAS_PRIO
     int seg_totales = (int)(ciclo * 1.5f);
     int up_min = (seg_totales / 60) % 60;
     int up_seg = seg_totales % 60;
-    float load_1 = (cpu_total_1 + cpu_total_2) / 100.0f;
 
-    /* Encabezado superior de doble columna estilo htop con Colas Múltiples y Swap funcional */
+    /* Encabezado superior limpio estilo htop */
     fijar_color(11); printf("  0"); restaurar_color();
     dibujar_barra_con_color(cpu_total_1);
     printf(" %5.1f%%   ", cpu_total_1);
@@ -122,9 +106,7 @@ void dibujar_interfaz_htop(ListaProcesos* lista, ColaListos colas[NUM_COLAS_PRIO
 
     fijar_color(11); printf("  1"); restaurar_color();
     dibujar_barra_con_color(cpu_total_2);
-    printf(" %5.1f%%   ", cpu_total_2);
-    fijar_color(11); printf("Load average: "); restaurar_color();
-    printf("%.2f %.2f %.2f\n", load_1, load_1 * 0.85f, load_1 * 0.70f);
+    printf(" %5.1f%%\n", cpu_total_2);
 
     fijar_color(11); printf("Mem"); restaurar_color();
     dibujar_barra_con_color(ram_porcentaje);
@@ -136,7 +118,7 @@ void dibujar_interfaz_htop(ListaProcesos* lista, ColaListos colas[NUM_COLAS_PRIO
     dibujar_barra_con_color(swp_porcentaje);
     printf(" %.2fG/2.00G  ", swp_gb);
     fijar_color(11); printf("Sched: "); restaurar_color();
-    printf("MLQ+RR(Q=%d) | Heapsort(%s)\n", quantum, texto_crit_orden(crit_orden));
+    printf("MLFQ\n");
 
     if (!admision_abierta) {
         fijar_color(14);
@@ -157,7 +139,7 @@ void dibujar_interfaz_htop(ListaProcesos* lista, ColaListos colas[NUM_COLAS_PRIO
 
     /* Franja de columnas con fondo verde y letras negras estilo htop */
     fijar_color(32);
-    printf("  PID USER      PRI State  CPU%%  MEM%%  Q_USE    TIME+  Command                   ");
+    printf("  PID USER      PRI State  CPU%%  MEM%%  Q_USE  TIME+   Command                   ");
     restaurar_color();
     printf("\n");
 
@@ -167,31 +149,27 @@ void dibujar_interfaz_htop(ListaProcesos* lista, ColaListos colas[NUM_COLAS_PRIO
         if (p->estado == TERMINADO) continue;
 
         const char* user = (p->pid % 2 == 0) ? "root" : "eliud";
-        int mins = p->tiempo_ejecucion / 60;
-        int secs = p->tiempo_ejecucion % 60;
-        int cent = (p->tiempo_rafaga - p->tiempo_ejecucion) % 100;
-        if (cent < 0) cent = 0;
 
         if (p->estado == EJECUCION) {
             fijar_color(10);
-            printf("%5d %-9s Q%d    R   %5.1f %5.1f   %3d   %2d:%02d.%02d  /usr/bin/%s\n",
+            printf("%5d %-9s Q%d    R   %5.1f %5.1f   %3d   %3d/%-3d  /usr/bin/%s\n",
                    p->pid, user, p->prioridad, p->cpu_uso, p->mem_uso,
-                   p->quantums_usados, mins, secs, cent, p->nombre);
+                   p->quantums_usados, p->tiempo_ejecucion, p->tiempo_rafaga, p->nombre);
             restaurar_color();
         } else if (p->estado == ESPERA) {
             fijar_color(11);
-            printf("%5d %-9s Q%d    T   %5.1f %5.1f   %3d   %2d:%02d.%02d  /usr/bin/%s\n",
+            printf("%5d %-9s Q%d    T   %5.1f %5.1f   %3d   %3d/%-3d  /usr/bin/%s\n",
                    p->pid, user, p->prioridad, p->cpu_uso, p->mem_uso,
-                   p->quantums_usados, mins, secs, cent, p->nombre);
+                   p->quantums_usados, p->tiempo_ejecucion, p->tiempo_rafaga, p->nombre);
             restaurar_color();
         } else {
-            printf("%5d %-9s Q%d    S   %5.1f %5.1f   %3d   %2d:%02d.%02d  /usr/bin/%s\n",
+            printf("%5d %-9s Q%d    S   %5.1f %5.1f   %3d   %3d/%-3d  /usr/bin/%s\n",
                    p->pid, user, p->prioridad, p->cpu_uso, p->mem_uso,
-                   p->quantums_usados, mins, secs, cent, p->nombre);
+                   p->quantums_usados, p->tiempo_ejecucion, p->tiempo_rafaga, p->nombre);
         }
     }
 
-    /* Barra inferior de una sola línea estilo teclas de función de htop */
+    /* Barra inferior de una sola linea estilo teclas de funcion de htop */
     printf("\n");
     fijar_color(11);  printf("1"); fijar_color(176); printf("Search ");
     fijar_color(11);  printf("2"); fijar_color(176); printf("SortBy ");

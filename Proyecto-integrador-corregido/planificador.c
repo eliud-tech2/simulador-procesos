@@ -7,37 +7,54 @@
 #define RAM_TOTAL_GB 7.39f
 #define SWP_TOTAL_GB 2.00f
 
-/* Planificador de Colas Múltiples (0=Alta, 1=Media, 2=Baja) con Round Robin */
+/* Quantum por nivel en MLFQ (Silberschatz 5.3.6): Q0 = q, Q1 = 2q, Q2 = 4q */
+static int obtener_quantum_cola(int nivel, int quantum_base) {
+    if (nivel <= 0) return quantum_base;
+    if (nivel == 1) return quantum_base * 2;
+    return quantum_base * 4;
+}
+
+/* Planificador MLFQ (Colas Multinivel Realimentadas, Silberschatz 5.3.6) */
 void ejecutar_planificador_multicola(ColaListos colas[NUM_COLAS_PRIORIDAD], int quantum,
                                      Proceso** proceso_en_cpu, int ciclo_actual) {
     if (colas == NULL || proceso_en_cpu == NULL) return;
 
-    /* 1. Evaluar el proceso que estuvo en CPU durante el ciclo anterior */
+    /* 1. Evaluar el proceso que ocupó la CPU durante el turno anterior */
     if (*proceso_en_cpu != NULL) {
         Proceso* p_actual = *proceso_en_cpu;
 
-        /* Si fue suspendido o cerrado manualmente/por OOM, soltamos el CPU */
+        /* Si fue suspendido o cerrado manualmente/por OOM, solo soltamos la CPU */
         if (p_actual->estado != EJECUCION) {
+            p_actual->cpu_uso = 0.0f;
             *proceso_en_cpu = NULL;
         } else {
-            p_actual->tiempo_ejecucion += quantum;
+            int q_cola = obtener_quantum_cola(p_actual->prioridad, quantum);
+            int restante = p_actual->tiempo_rafaga - p_actual->tiempo_ejecucion;
+            if (restante < 0) restante = 0;
+
+            /* Round Robin exacto (5.3.4): nunca consume más que su ráfaga restante */
+            int ejecutado = (restante < q_cola) ? restante : q_cola;
+            p_actual->tiempo_ejecucion += ejecutado;
             p_actual->quantums_usados++;
 
             if (p_actual->tiempo_ejecucion >= p_actual->tiempo_rafaga) {
                 terminar_proceso(p_actual, ciclo_actual, FIN_COMPLETADO);
                 *proceso_en_cpu = NULL;
             } else {
-                /* Expropiación en Round Robin: vuelve al final de su misma cola FIFO */
+                /* Realimentación (5.3.6): agotó su quantum -> baja un nivel de cola */
+                if (p_actual->prioridad < NUM_COLAS_PRIORIDAD - 1) {
+                    p_actual->prioridad++;
+                }
                 p_actual->estado = LISTO;
                 p_actual->ciclos_esperando = 0;
-                p_actual->cpu_uso = (float)(rand() % 28 + 5) / 10.0f;
+                p_actual->cpu_uso = 0.0f; /* En LISTO no consume CPU */
                 encolar(&colas[p_actual->prioridad], p_actual);
                 *proceso_en_cpu = NULL;
             }
         }
     }
 
-    /* 2. Despachador: busca el primer proceso LISTO empezando por la Cola 0 (Alta) -> Cola 1 -> Cola 2 */
+    /* 2. Despachador con prioridad estricta (Q0 -> Q1 -> Q2) y orden FIFO interno */
     if (*proceso_en_cpu == NULL) {
         Proceso* siguiente = NULL;
         for (int nivel = 0; nivel < NUM_COLAS_PRIORIDAD && siguiente == NULL; nivel++) {
@@ -53,7 +70,7 @@ void ejecutar_planificador_multicola(ColaListos colas[NUM_COLAS_PRIORIDAD], int 
         if (siguiente != NULL) {
             siguiente->estado = EJECUCION;
             siguiente->ciclos_esperando = 0;
-            siguiente->cpu_uso = (float)(rand() % 760 + 125) / 10.0f;
+            siguiente->cpu_uso = (float)(rand() % 650 + 200) / 10.0f;
             *proceso_en_cpu = siguiente;
         }
     }

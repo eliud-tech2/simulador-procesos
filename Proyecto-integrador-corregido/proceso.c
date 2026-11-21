@@ -5,19 +5,14 @@
 
 /* Construye un proceso nuevo reservando memoria RAM */
 Proceso* crear_proceso(int pid, const char* nombre, int prioridad, float mem_uso, int ciclo_actual) {
-    // 1. Pedimos la memoria exacta que pesa un struct Proceso
     Proceso* nuevo = (Proceso*)malloc(sizeof(Proceso));
 
-    // Si la PC se queda sin RAM, malloc devuelve NULL. Hay que validar siempre.
     if (nuevo == NULL) {
         printf("Error fatal: No hay memoria para el proceso %d\n", pid);
         return NULL;
     }
 
-    // 2. Inicializamos los atributos según las reglas de los sistemas operativos
     nuevo->pid = pid;
-
-    // strncpy es más seguro que strcpy para evitar desbordamientos de memoria
     strncpy(nuevo->nombre, nombre, 49);
     nuevo->nombre[49] = '\0';
 
@@ -25,12 +20,13 @@ Proceso* crear_proceso(int pid, const char* nombre, int prioridad, float mem_uso
     if (prioridad > 2) prioridad = 2;
     nuevo->prioridad = prioridad;
 
-    nuevo->cpu_uso = 0.0f; // Nace sin usar CPU, el planificador se lo subirá
+    nuevo->cpu_uso = 0.0f;
     nuevo->mem_uso = mem_uso;
-    nuevo->estado = LISTO; // Todo proceso nuevo entra directamente a la fila de LISTOS
+    nuevo->estado = LISTO;
     nuevo->motivo_fin = FIN_NINGUNO;
     nuevo->tiempo_ejecucion = 0;
-    nuevo->tiempo_rafaga = 40 + (rand() % 61); // Ráfaga estimada entre 40 y 100 ciclos
+    /* Rafaga entre 5 y 100 ciclos: permite procesos cortos en Q0 y largos que bajan a Q1/Q2 */
+    nuevo->tiempo_rafaga = 5 + (rand() % 96);
     nuevo->quantums_usados = 0;
     nuevo->ciclos_esperando = 0;
     nuevo->ciclo_llegada = ciclo_actual;
@@ -43,7 +39,7 @@ Proceso* crear_proceso(int pid, const char* nombre, int prioridad, float mem_uso
 void suspender_proceso(Proceso* p) {
     if (p != NULL && p->estado != TERMINADO) {
         p->estado = ESPERA;
-        p->cpu_uso = 0.0f; // Al suspenderse libera el procesador
+        p->cpu_uso = 0.0f;
     }
 }
 
@@ -54,7 +50,7 @@ void reanudar_proceso(Proceso* p) {
     }
 }
 
-/* Simula la muerte lógica del proceso registrando el motivo y liberando sus recursos */
+/* Simula la muerte logica del proceso registrando el motivo y liberando sus recursos */
 void terminar_proceso(Proceso* p, int ciclo_actual, MotivoFin motivo) {
     if (p != NULL) {
         p->estado = TERMINADO;
@@ -68,9 +64,9 @@ void terminar_proceso(Proceso* p, int ciclo_actual, MotivoFin motivo) {
     }
 }
 
-/* Destruye físicamente el proceso liberando la memoria RAM de tu computadora */
+/* Destruye fisicamente el proceso liberando la memoria RAM */
 void destruir_proceso(Proceso* p) {
     if (p != NULL) {
-        free(p); // La regla de oro en C: todo malloc() requiere su free()
+        free(p);
     }
 }

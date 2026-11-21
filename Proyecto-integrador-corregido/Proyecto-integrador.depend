@@ -101,7 +101,7 @@
 	<stdlib.h>
 	"ordenamiento.h"
 
-1795141402 source:c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\busqueda.c
+1795142912 source:c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\busqueda.c
 	<stdio.h>
 	<stdlib.h>
 	<string.h>
@@ -132,7 +132,7 @@
 	<stdlib.h>
 	"estructuras.h"
 
-1795141214 source:c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\generador.c
+1795294418 source:c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\generador.c
 	<stdio.h>
 	<stdlib.h>
 	"generador.h"
@@ -142,7 +142,7 @@
 	"estructuras.h"
 	"busqueda.h"
 
-1795141488 source:c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\interfaz.c
+1795294414 source:c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\interfaz.c
 	<stdio.h>
 	<stdlib.h>
 	<string.h>
@@ -151,7 +151,7 @@
 	"consola.h"
 	"ordenamiento.h"
 
-1795141249 c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\planificador.h
+1795142821 c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\planificador.h
 	"estructuras.h"
 	"generador.h"
 
@@ -163,7 +163,7 @@
 	"generador.h"
 	"ordenamiento.h"
 
-1795141552 source:c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\main.c
+1795297820 source:c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\main.c
 	<stdio.h>
 	<stdlib.h>
 	<string.h>
@@ -182,14 +182,14 @@
 	<stdlib.h>
 	"ordenamiento.h"
 
-1795141287 source:c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\planificador.c
+1795293878 source:c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\planificador.c
 	<stdio.h>
 	<stdlib.h>
 	<string.h>
 	"planificador.h"
 	"proceso.h"
 
-1795141094 source:c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\proceso.c
+1795142750 source:c:\users\user\documents\proyecto integrador\simulador-procesos\proyecto-integrador-corregido\proceso.c
 	<stdio.h>
 	<stdlib.h>
 	<string.h>
