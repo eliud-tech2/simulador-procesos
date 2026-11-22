@@ -195,3 +195,97 @@
 	<string.h>
 	"proceso.h"
 
+1795142912 source:c:\users\user\documents\proyecto integrador\simulador-procesos\codigosimulador\busqueda.c
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+	"busqueda.h"
+
+1794890934 c:\users\user\documents\proyecto integrador\simulador-procesos\codigosimulador\busqueda.h
+	"estructuras.h"
+
+1795047121 c:\users\user\documents\proyecto integrador\simulador-procesos\codigosimulador\estructuras.h
+	"proceso.h"
+
+1795142719 c:\users\user\documents\proyecto integrador\simulador-procesos\codigosimulador\proceso.h
+
+1794890326 source:c:\users\user\documents\proyecto integrador\simulador-procesos\codigosimulador\consola.c
+	<stdio.h>
+	<stdlib.h>
+	"consola.h"
+	<windows.h>
+	<conio.h>
+	<unistd.h>
+	<termios.h>
+	<fcntl.h>
+
+1794890324 c:\users\user\documents\proyecto integrador\simulador-procesos\codigosimulador\consola.h
+
+1794890908 source:c:\users\user\documents\proyecto integrador\simulador-procesos\codigosimulador\estructuras.c
+	<stdio.h>
+	<stdlib.h>
+	"estructuras.h"
+
+1795300143 source:c:\users\user\documents\proyecto integrador\simulador-procesos\codigosimulador\generador.c
+	<stdio.h>
+	<stdlib.h>
+	"generador.h"
+	"proceso.h"
+
+1795141123 c:\users\user\documents\proyecto integrador\simulador-procesos\codigosimulador\generador.h
+	"estructuras.h"
+	"busqueda.h"
+
+1795300178 source:c:\users\user\documents\proyecto integrador\simulador-procesos\codigosimulador\interfaz.c
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+	<windows.h>
+	"interfaz.h"
+	"consola.h"
+	"ordenamiento.h"
+
+1795141451 c:\users\user\documents\proyecto integrador\simulador-procesos\codigosimulador\interfaz.h
+	"estructuras.h"
+	"generador.h"
+	"ordenamiento.h"
+
+1794965952 c:\users\user\documents\proyecto integrador\simulador-procesos\codigosimulador\ordenamiento.h
+	"estructuras.h"
+
+1795297820 source:c:\users\user\documents\proyecto integrador\simulador-procesos\codigosimulador\main.c
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+	<time.h>
+	"consola.h"
+	"proceso.h"
+	"estructuras.h"
+	"planificador.h"
+	"generador.h"
+	"ordenamiento.h"
+	"busqueda.h"
+	"interfaz.h"
+
+1795142821 c:\users\user\documents\proyecto integrador\simulador-procesos\codigosimulador\planificador.h
+	"estructuras.h"
+	"generador.h"
+
+1795048858 source:c:\users\user\documents\proyecto integrador\simulador-procesos\codigosimulador\ordenamiento.c
+	<stdio.h>
+	<stdlib.h>
+	"ordenamiento.h"
+
+1795293878 source:c:\users\user\documents\proyecto integrador\simulador-procesos\codigosimulador\planificador.c
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+	"planificador.h"
+	"proceso.h"
+
+1795300116 source:c:\users\user\documents\proyecto integrador\simulador-procesos\codigosimulador\proceso.c
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+	"proceso.h"
+
