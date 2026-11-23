@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>simulador.exe</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      background: #000000;
+      color: #cccccc;
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 14px;
+      line-height: 1.25;
+      min-height: 100%;
+    }
+    body {
+      padding: 8px 10px;
+    }
+    pre#pantalla {
+      white-space: pre;
+      font-family: inherit;
+      font-size: inherit;
+      margin: 0;
+      overflow-x: auto;
+    }
+    .c-cyan   { color: #00ffff; }
+    .c-green  { color: #00ff00; }
+    .c-yellow { color: #ffff00; }
+    .c-orange { color: #cc8800; }
+    .c-red    { color: #ff4444; }
+    .bg-green { background: #00aa00; color: #000000; }
+    .bg-cyan  { background: #00aaaa; color: #000000; }
+    .fkey {
+      cursor: pointer;
+      display: inline;
+    }
+    .fkey:hover .bg-cyan {
+      background: #00dddd;
+    }
+    #lineaPrompt {
+      margin-top: 4px;
+      display: none;
+      white-space: pre-wrap;
+      font-family: inherit;
+      font-size: inherit;
+      color: #cccccc;
+    }
+    #lineaPrompt.activo { display: block; }
+    #entradaCmd {
+      background: #000000;
+      color: #ffffff;
+      border: none;
+      border-bottom: 1px solid #555555;
+      font-family: inherit;
+      font-size: inherit;
+      outline: none;
+      width: 240px;
+      caret-color: #ffffff;
+    }
+    #salidaCmd {
+      white-space: pre-wrap;
+      margin-top: 4px;
+      color: #cccccc;
+    }
+  </style>
+</head>
+<body>
+  <pre id="pantalla"></pre>
+  <div id="lineaPrompt">
+    <span id="textoPrompt"></span><input id="entradaCmd" type="text" autocomplete="off" spellcheck="false" />
+    <div id="salidaCmd"></div>
+  </div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      const RAM_TOTAL_GB = 7.39;
+      const SWP_TOTAL_GB = 2.00;
+      const NUM_COLAS = 3;
+      const HASH_SIZE = 97;
+      const CICLOS_ENVEJECIMIENTO = 10;
+
+      const ESTADO = { LISTO: 0, EJECUCION: 1, ESPERA: 2, TERMINADO: 3 };
+      const MOTIVO = { NINGUNO: 0, COMPLETADO: 1, KILL: 2, OOM: 3, RECHAZADO: 4 };
+      const CRITERIO = { MEM: 1, CPU: 2, TIEMPO: 3, PID: 4 };
+
+      const BANCO_ROOT = [
+        'systemd', 'sshd', 'cron', 'syslogd', 'dbus',
+        'udevd', 'networkd', 'iptables', 'dockerd', 'kerneld'
+      ];
+      const BANCO_USUARIO = [
+        'chrome', 'firefox', 'opera', 'spotify', 'discord', 'steam',
+        'vscode', 'python', 'gcc', 'vlc', 'zoom', 'teams'
+      ];
+
+      /* Cola FIFO */
+      class ColaListos {
+        constructor() { this.items = []; }
+        get tamano() { return this.items.length; }
+        encolar(p) { this.items.push(p); }
+        desencolar() { return this.items.length ? this.items.shift() : null; }
+        estaEnCola(pid) { return this.items.some(p => p.pid === pid); }
+        eliminar(pid) {
+          const i = this.items.findIndex(p => p.pid === pid);
+          if (i !== -1) this.items.splice(i, 1);
+        }
+      }
+
+      /* Arbol Binario de Busqueda (BST por PID) */
+      class NodoArbol {
+        constructor(p) { this.proceso = p; this.izq = null; this.der = null; }
+      }
+      class ArbolPID {
+        constructor() { this.raiz = null; }
+        insertar(p) {
+          const ins = (n, proc) => {
+            if (!n) return new NodoArbol(proc);
+            if (proc.pid < n.proceso.pid) n.izq = ins(n.izq, proc);
+            else if (proc.pid > n.proceso.pid) n.der = ins(n.der, proc);
+            return n;
+          };
+          this.raiz = ins(this.raiz, p);
+        }
+        buscar(pid) {
+          let a = this.raiz;
+          while (a) {
+            if (a.proceso.pid === pid) return a.proceso;
+            a = pid < a.proceso.pid ? a.izq : a.der;
+          }
+          return null;
+        }
+      }
+
+      /* Tabla Hash (djb2 % 97 con encadenamiento) */
+      class TablaHash {
+        constructor() { this.tabla = Array.from({ length: HASH_SIZE }, () => []); }
+        calcularHash(str) {
+          let h = 5381;
+          for (let i = 0; i < str.length; i++) h = (((h << 5) + h) + str.charCodeAt(i)) >>> 0;
+          return h % HASH_SIZE;
+        }
+        insertar(p) { this.tabla[this.calcularHash(p.nombre)].unshift(p); }
+        buscar(nom) {
+          const idx = this.calcularHash(nom);
+          return { indice: idx, lista: this.tabla[idx].filter(p => p.nombre === nom) };
+        }
+      }
+
+      /* Heapsort + Busqueda Binaria */
+      function debeIrDespues(a, b, c) {
+        if (c === CRITERIO.MEM) return a.mem_uso < b.mem_uso;
+        if (c === CRITERIO.CPU) return a.cpu_uso < b.cpu_uso;
+        if (c === CRITERIO.TIEMPO) return a.tiempo_ejecucion < b.tiempo_ejecucion;
+        if (c === CRITERIO.PID) return a.pid > b.pid;
+        return a.mem_uso < b.mem_uso;
+      }
+      function heapify(arr, n, i, c) {
+        let ext = i, izq = 2 * i + 1, der = 2 * i + 2;
+        if (izq < n && debeIrDespues(arr[izq], arr[ext], c)) ext = izq;
+        if (der < n && debeIrDespues(arr[der], arr[ext], c)) ext = der;
+        if (ext !== i) {
+          const t = arr[i]; arr[i] = arr[ext]; arr[ext] = t;
+          heapify(arr, n, ext, c);
+        }
+      }
+      function heapsort(arr, c) {
+        const n = arr.length;
+        for (let i = Math.floor(n / 2) - 1; i >= 0; i--) heapify(arr, n, i, c);
+        for (let i = n - 1; i > 0; i--) {
+          const t = arr[0]; arr[0] = arr[i]; arr[i] = t;
+          heapify(arr, i, 0, c);
+        }
+        return arr;
+      }
+      function busquedaBinariaPid(arr, pid) {
+        let izq = 0, der = arr.length - 1;
+        while (izq <= der) {
+          const med = izq + Math.floor((der - izq) / 2);
+          if (arr[med].pid === pid) return arr[med];
+          if (arr[med].pid < pid) izq = med + 1;
+          else der = med - 1;
+        }
+        return null;
+      }
+
+      /* Estado global */
+      let lista = [], colas = [], arbol = null, hash = null;
+      let quantumSistema = 10, ciclo = 1, contadorRespaldo = 1000;
+      let procesoEnCpu = null, ordenCriterio = CRITERIO.MEM;
+      let ramGb = 0.80, swpGb = 0.00, admisionAbierta = true, mensajeOom = '';
+      let pausado = false, finalizado = false, timerId = null;
+      let modoPrompt = null, subPaso = null;
+
+      const elPantalla = document.getElementById('pantalla');
+      const elLineaPrompt = document.getElementById('lineaPrompt');
+      const elTextoPrompt = document.getElementById('textoPrompt');
+      const elEntrada = document.getElementById('entradaCmd');
+      const elSalida = document.getElementById('salidaCmd');
+
+      const randInt = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
+      const padL = (v, n) => String(v).padStart(n, ' ');
+      const padR = (v, n) => String(v).padEnd(n, ' ');
+
+      function generarPidAleatorio(esRoot) {
+        for (let i = 0; i < 200; i++) {
+          const base = 100 + randInt(0, 449) * 2;
+          const cand = esRoot ? base : base + 1;
+          if (!arbol.buscar(cand)) return cand;
+        }
+        let r = contadorRespaldo;
+        if ((r % 2 === 0) !== Boolean(esRoot)) r++;
+        contadorRespaldo = r + 2;
+        return r;
+      }
+
+      function crearProceso(pid, nombre, prio, mem, c) {
+        return {
+          pid, nombre, prioridad: prio, cpu_uso: 0.0, mem_uso: mem,
+          estado: ESTADO.LISTO, motivo_fin: MOTIVO.NINGUNO,
+          tiempo_ejecucion: 0, tiempo_rafaga: randInt(5, 100),
+          quantums_usados: 0, ciclos_esperando: 0, ciclo_llegada: c, ciclo_fin: 0
+        };
+      }
+
+      function terminarProceso(p, c, mot) {
+        p.estado = ESTADO.TERMINADO;
+        p.motivo_fin = mot;
+        p.cpu_uso = 0.0;
+        p.mem_uso = 0.0;
+        p.ciclos_esperando = 0;
+        if (p.ciclo_fin === 0) p.ciclo_fin = c;
+      }
+
+      function intentarCrearProceso(permitir, forzar) {
+        if (forzar || Math.random() < 0.35) {
+          const esRoot = Math.random() < 0.35;
+          const nom = esRoot ? BANCO_ROOT[randInt(0, 9)] : BANCO_USUARIO[randInt(0, 11)];
+          const pid = generarPidAleatorio(esRoot);
+          const mem = Number((randInt(35, 179) / 10).toFixed(1));
+          const p = crearProceso(pid, nom, 0, mem, ciclo);
+          lista.push(p);
+          arbol.insertar(p);
+          hash.insertar(p);
+          if (permitir) colas[0].encolar(p);
+          else terminarProceso(p, ciclo, MOTIVO.RECHAZADO);
+        }
+      }
+
+      function inyectarEstres(cant) {
+        const pesados = ['chrome', 'steam', 'firefox', 'discord', 'vscode'];
+        for (let i = 0; i < cant; i++) {
+          const pid = generarPidAleatorio(false);
+          const mem = Number((randInt(125, 189) / 10).toFixed(1));
+          const p = crearProceso(pid, pesados[i % 5], 0, mem, ciclo);
+          lista.push(p);
+          colas[0].encolar(p);
+          arbol.insertar(p);
+          hash.insertar(p);
+        }
+        return cant;
+      }
+
+      function quantumCola(niv) {
+        if (niv <= 0) return quantumSistema;
+        if (niv === 1) return quantumSistema * 2;
+        return quantumSistema * 4;
+      }
+
+      function ejecutarPlanificador() {
+        if (procesoEnCpu) {
+          const p = procesoEnCpu;
+          if (p.estado !== ESTADO.EJECUCION) {
+            p.cpu_uso = 0.0;
+            procesoEnCpu = null;
+          } else {
+            const q = quantumCola(p.prioridad);
+            const rest = Math.max(0, p.tiempo_rafaga - p.tiempo_ejecucion);
+            p.tiempo_ejecucion += Math.min(rest, q);
+            p.quantums_usados++;
+            if (p.tiempo_ejecucion >= p.tiempo_rafaga) {
+              terminarProceso(p, ciclo, MOTIVO.COMPLETADO);
+              procesoEnCpu = null;
+            } else {
+              if (p.prioridad < NUM_COLAS - 1) p.prioridad++;
+              p.estado = ESTADO.LISTO;
+              p.ciclos_esperando = 0;
+              p.cpu_uso = 0.0;
+              colas[p.prioridad].encolar(p);
+              procesoEnCpu = null;
+            }
+          }
+        }
+        if (!procesoEnCpu) {
+          let sig = null;
+          for (let n = 0; n < NUM_COLAS && !sig; n++) {
+            while (colas[n].tamano > 0) {
+              const cand = colas[n].desencolar();
+              if (cand && cand.estado === ESTADO.LISTO) { sig = cand; break; }
+            }
+          }
+          if (sig) {
+            sig.estado = ESTADO.EJECUCION;
+            sig.ciclos_esperando = 0;
+            sig.cpu_uso = Number((randInt(200, 849) / 10).toFixed(1));
+            procesoEnCpu = sig;
+          }
+        }
+      }
+
+      function aplicarEnvejecimiento() {
+        for (const p of lista) {
+          if (p.estado === ESTADO.LISTO && p.prioridad > 0) {
+            p.ciclos_esperando++;
+            if (p.ciclos_esperando >= CICLOS_ENVEJECIMIENTO) {
+              const v = p.prioridad;
+              p.prioridad--;
+              p.ciclos_esperando = 0;
+              colas[v].eliminar(p.pid);
+              if (!colas[p.prioridad].estaEnCola(p.pid)) colas[p.prioridad].encolar(p);
+            }
+          }
+        }
+      }
+
+      function verificarMemoria() {
+        let tot = 0.80;
+        for (const p of lista) {
+          if (p.estado !== ESTADO.TERMINADO) tot += (p.mem_uso / 100) * RAM_TOTAL_GB;
+        }
+        const limCrit = RAM_TOTAL_GB + SWP_TOTAL_GB * 0.90;
+        const limAdm = RAM_TOTAL_GB + SWP_TOTAL_GB * 0.65;
+        mensajeOom = '';
+
+        if (tot >= limCrit) {
+          let vic = null;
+          for (let pr = NUM_COLAS - 1; pr >= 0 && !vic; pr--) {
+            for (const p of lista) {
+              if (p.estado !== ESTADO.TERMINADO && p.prioridad === pr && p !== procesoEnCpu) {
+                if (!vic || p.mem_uso > vic.mem_uso) vic = p;
+              }
+            }
+          }
+          if (vic) {
+            const lib = (vic.mem_uso / 100) * RAM_TOTAL_GB;
+            const vp = vic.pid, vn = vic.nombre, vpr = vic.prioridad;
+            terminarProceso(vic, ciclo, MOTIVO.OOM);
+            colas[vpr].eliminar(vp);
+            tot -= lib;
+            mensajeOom = `OOM-Killer: cerrado PID ${vp} (${vn}, Q${vpr}) -> liberados ${lib.toFixed(2)}G`;
+          }
+        }
+        ramGb = tot;
+        swpGb = 0.0;
+        if (ramGb > RAM_TOTAL_GB) {
+          swpGb = Math.min(SWP_TOTAL_GB, ramGb - RAM_TOTAL_GB);
+          ramGb = RAM_TOTAL_GB;
+        }
+        admisionAbierta = tot < limAdm;
+      }
+
+      function barra(pct) {
+        const llenos = Math.max(0, Math.min(25, Math.floor((pct / 100) * 25)));
+        const cls = pct < 40 ? 'c-green' : (pct < 70 ? 'c-yellow' : (pct < 88 ? 'c-orange' : 'c-red'));
+        return `[<span class="${cls}">${'|'.repeat(llenos)}</span>${' '.repeat(25 - llenos)}]`;
+      }
+
+      function txtMotivo(m) {
+        if (m === MOTIVO.COMPLETADO) return '[COMPLETADO]   ';
+        if (m === MOTIVO.KILL) return '[KILL MANUAL]  ';
+        if (m === MOTIVO.OOM) return '[OOM-KILLER]   ';
+        if (m === MOTIVO.RECHAZADO) return '[RECHAZADO MEM]';
+        return '[FINALIZADO]   ';
+      }
+
+      function txtEstado(e) {
+        if (e === ESTADO.EJECUCION) return 'EJECUCION (R)';
+        if (e === ESTADO.ESPERA) return 'ESPERA (T)';
+        if (e === ESTADO.TERMINADO) return 'TERMINADO';
+        return 'LISTO (S)';
+      }
+
+      function dibujar() {
+        let cpu1 = 0, act = 0, run = 0, term = 0;
+        for (const p of lista) {
+          if (p.estado !== ESTADO.TERMINADO) {
+            act++;
+            if (p.estado === ESTADO.EJECUCION) { run++; cpu1 += p.cpu_uso; }
+          } else term++;
+        }
+        if (cpu1 > 100) cpu1 = 98.5;
+
+        const ramPct = (ramGb / RAM_TOTAL_GB) * 100;
+        const swpPct = (swpGb / SWP_TOTAL_GB) * 100;
+        const seg = Math.floor(ciclo * 1.5);
+        const mm = String(Math.floor(seg / 60) % 60).padStart(2, '0');
+        const ss = String(seg % 60).padStart(2, '0');
+
+        let out = '';
+        out += `<span class="c-cyan">  0</span>${barra(cpu1)} ${padL(cpu1.toFixed(1), 5)}%   <span class="c-cyan">Tasks: </span>${act} (Q0:${colas[0].tamano} Q1:${colas[1].tamano} Q2:${colas[2].tamano}); <span class="c-green">${run} running</span>\n`;
+        out += `<span class="c-cyan">  1</span>${barra(0)}   0.0%\n`;
+        out += `<span class="c-cyan">Mem</span>${barra(ramPct)} ${ramGb.toFixed(2)}G/7.39G  <span class="c-cyan">Uptime: </span>00:${mm}:${ss} (Ciclo #${ciclo})\n`;
+        out += `<span class="c-cyan">Swp</span>${barra(swpPct)} ${swpGb.toFixed(2)}G/2.00G  <span class="c-cyan">Sched: </span>MLFQ\n`;
+
+        if (!admisionAbierta) {
+          out += `<span class="c-yellow">[CONTROL DE ADMISION] Memoria saturada: ingreso de procesos nuevos pausado.</span>\n`;
+        }
+        if (mensajeOom) {
+          out += `<span class="c-red">[${mensajeOom}]</span>\n`;
+        }
+        out += '\n';
+
+        out += `<span class="bg-green">  PID USER      PRI State  CPU%  MEM%  Q_USE  TIME+   Command                   </span>\n`;
+
+        const arr = heapsort(lista.slice(), ordenCriterio);
+        for (const p of arr) {
+          if (p.estado === ESTADO.TERMINADO) continue;
+          const user = p.pid % 2 === 0 ? 'root' : 'eliud';
+          const st = p.estado === ESTADO.EJECUCION ? 'R' : (p.estado === ESTADO.ESPERA ? 'T' : 'S');
+          const tStr = `${padL(p.tiempo_ejecucion, 3)}/${padR(p.tiempo_rafaga, 3)}`;
+          const fila = `${padL(p.pid, 5)} ${padR(user, 9)} Q${p.prioridad}    ${st}   ${padL(p.cpu_uso.toFixed(1), 5)} ${padL(p.mem_uso.toFixed(1), 5)}   ${padL(p.quantums_usados, 3)}   ${tStr}  /usr/bin/${p.nombre}`;
+          if (p.estado === ESTADO.EJECUCION) out += `<span class="c-green">${fila}</span>\n`;
+          else if (p.estado === ESTADO.ESPERA) out += `<span class="c-cyan">${fila}</span>\n`;
+          else out += `${fila}\n`;
+        }
+
+        out += '\n';
+        const fkey = (k, lbl) => `<span class="fkey" data-key="${k}"><span class="c-cyan">${k}</span><span class="bg-cyan">${lbl}</span></span>`;
+        out += fkey('1', 'Search ') + fkey('2', 'SortBy ') + fkey('3', 'State ') +
+               fkey('4', 'Quantum ') + fkey('5', `Terminated(${term}) `) +
+               fkey('6', 'Kill ') + fkey('7', 'Stress ') + fkey('0', 'Quit ');
+
+        elPantalla.innerHTML = out;
+      }
+
+      function pedirEntrada(texto, salidaInicial) {
+        pausado = true;
+        elTextoPrompt.textContent = texto;
+        elEntrada.value = '';
+        elEntrada.style.display = 'inline-block';
+        elSalida.textContent = salidaInicial || '';
+        elLineaPrompt.classList.add('activo');
+        elEntrada.focus();
+      }
+
+      function mostrarSoloTexto(texto) {
+        pausado = true;
+        elTextoPrompt.textContent = '';
+        elEntrada.style.display = 'none';
+        elSalida.textContent = texto + '\n\nPresiona Enter o Escape para volver a htop...';
+        elLineaPrompt.classList.add('activo');
+      }
+
+      function cerrarPrompt() {
+        modoPrompt = null;
+        subPaso = null;
+        elLineaPrompt.classList.remove('activo');
+        if (!finalizado) pausado = false;
+      }
+
+      function activarTecla(k) {
+        if (finalizado) { iniciar(); return; }
+        if (k === '1') {
+          modoPrompt = '1'; subPaso = 'tipo';
+          pedirEntrada('[Search] 1=Nombre(Hash)  2=PID(Binaria+Heapsort): ');
+        } else if (k === '2') {
+          modoPrompt = '2'; subPaso = 'crit';
+          pedirEntrada('[SortBy - Heapsort] Columna (1=MEM%, 2=CPU%, 3=TIME+, 4=PID): ');
+        } else if (k === '3') {
+          modoPrompt = '3'; subPaso = 'op';
+          pedirEntrada('[State] 1=Suspender(T)  2=Reanudar(S): ');
+        } else if (k === '4') {
+          modoPrompt = '4'; subPaso = 'val';
+          pedirEntrada(`[Quantum Base Q0] Actual=${quantumSistema} (Q1=${quantumSistema*2}, Q2=${quantumSistema*4}) | Nuevo (5-25): `);
+        } else if (k === '5') {
+          modoPrompt = 'espera';
+          let txt = '==========================================================================\n';
+          txt += 'HISTORIAL DE PROCESOS FINALIZADOS\n';
+          txt += '==========================================================================\n';
+          let enc = 0, cOk = 0, cK = 0, cO = 0, cR = 0;
+          for (const p of lista) {
+            if (p.estado === ESTADO.TERMINADO) {
+              enc++;
+              const ret = Math.max(0, p.ciclo_fin - p.ciclo_llegada);
+              const esp = Math.max(0, ret - p.quantums_usados);
+              if (p.motivo_fin === MOTIVO.COMPLETADO) cOk++;
+              else if (p.motivo_fin === MOTIVO.KILL) cK++;
+              else if (p.motivo_fin === MOTIVO.OOM) cO++;
+              else if (p.motivo_fin === MOTIVO.RECHAZADO) cR++;
+              if (p.motivo_fin === MOTIVO.RECHAZADO) {
+                txt += `- PID:${padL(p.pid,4)} | Q${p.prioridad} | ${padR(p.nombre,12)} | ${txtMotivo(p.motivo_fin)} | Intento en Ciclo #${p.ciclo_llegada}\n`;
+              } else {
+                txt += `- PID:${padL(p.pid,4)} | Q${p.prioridad} | ${padR(p.nombre,12)} | ${txtMotivo(p.motivo_fin)} | Q_use:${padL(p.quantums_usados,2)} | #${p.ciclo_llegada}->#${p.ciclo_fin} (Retorno:${ret}, Esp:${esp})\n`;
+              }
+            }
+          }
+          if (!enc) txt += 'No se encontraron procesos terminados.\n';
+          else txt += `\nResumen -> Total: ${enc} | Completados: ${cOk} | Kill manual: ${cK} | OOM-Killer: ${cO} | Rechazados(Mem): ${cR}`;
+          mostrarSoloTexto(txt);
+        } else if (k === '6') {
+          modoPrompt = '6'; subPaso = 'pid';
+          pedirEntrada('[Kill - SIGTERM] Introduce el PID para forzar cierre: ');
+        } else if (k === '7') {
+          const n = inyectarEstres(8);
+          verificarMemoria();
+          dibujar();
+          modoPrompt = 'espera';
+          mostrarSoloTexto(`[Stress] Inyectados ${n} procesos pesados en Q0 para probar Swap y OOM Killer...`);
+        } else if (k === '0') {
+          finalizado = true;
+          pausado = true;
+          if (timerId) clearInterval(timerId);
+          elPantalla.textContent = 'Liberando memoria y saliendo de htop de forma segura...\n\nPresiona Enter o cualquier tecla para reiniciar simulador.exe';
+          elLineaPrompt.classList.remove('activo');
+        }
+      }
+
+      function procesarEntrada(val) {
+        const v = val.trim();
+        if (modoPrompt === '1' && subPaso === 'tipo') {
+          if (v === '1') {
+            subPaso = 'nombre';
+            pedirEntrada('Nombre exacto (ej. chrome, systemd, spotify): ');
+          } else if (v === '2') {
+            subPaso = 'pid';
+            pedirEntrada('PID exacto a buscar: ');
+          } else {
+            modoPrompt = 'espera';
+            mostrarSoloTexto('Opcion no valida.');
+          }
+        } else if (modoPrompt === '1' && subPaso === 'nombre') {
+          const t0 = performance.now();
+          const res = hash.buscar(v);
+          const ms = (performance.now() - t0).toFixed(4);
+          let txt = `--- Resultados Hash para '${v}' (Indice #${res.indice}) ---\n`;
+          if (!res.lista.length) txt += `No hay procesos registrados llamados '${v}'.\n`;
+          else {
+            for (const p of res.lista) {
+              txt += `- PID: ${p.pid} | Q${p.prioridad} | CPU: ${p.cpu_uso.toFixed(1)}% | RAM: ${p.mem_uso.toFixed(1)}% | Estado: ${txtEstado(p.estado)}\n`;
+            }
+            txt += `Instancias totales encontradas: ${res.lista.length}\n`;
+          }
+          txt += `[Rendimiento] Tiempo de busqueda: ${ms} ms`;
+          modoPrompt = 'espera';
+          mostrarSoloTexto(txt);
+        } else if (modoPrompt === '1' && subPaso === 'pid') {
+          const pid = parseInt(v, 10);
+          const t0 = performance.now();
+          const arr = heapsort(lista.slice(), CRITERIO.PID);
+          const res = Number.isNaN(pid) ? null : busquedaBinariaPid(arr, pid);
+          const ms = (performance.now() - t0).toFixed(4);
+          let txt = res
+            ? `[PROCESO LOCALIZADO]\n - PID: ${res.pid} | Cola: Q${res.prioridad} | Command: /usr/bin/${res.nombre} | State: ${txtEstado(res.estado)}\n - CPU%: ${res.cpu_uso.toFixed(1)}% | MEM%: ${res.mem_uso.toFixed(1)}% | Ciclos CPU: ${res.tiempo_ejecucion}/${res.tiempo_rafaga} | Quantums: ${res.quantums_usados}`
+            : `No se encontro ningun proceso con el PID ${v}.`;
+          txt += `\n[Rendimiento] Tiempo de busqueda: ${ms} ms`;
+          modoPrompt = 'espera';
+          mostrarSoloTexto(txt);
+        } else if (modoPrompt === '2') {
+          const op = parseInt(v, 10);
+          if (op >= 1 && op <= 4) ordenCriterio = op;
+          const t0 = performance.now();
+          heapsort(lista.slice(), ordenCriterio);
+          const ms = (performance.now() - t0).toFixed(4);
+          dibujar();
+          modoPrompt = 'espera';
+          mostrarSoloTexto(`Heapsort (${lista.length} procesos) en ${ms} ms`);
+        } else if (modoPrompt === '3' && subPaso === 'op') {
+          if (v === '1' || v === '2') {
+            subPaso = v;
+            pedirEntrada('PID del proceso: ');
+          } else {
+            modoPrompt = 'espera';
+            mostrarSoloTexto('Opcion no valida.');
+          }
+        } else if (modoPrompt === '3') {
+          const pid = parseInt(v, 10);
+          const obj = Number.isNaN(pid) ? null : arbol.buscar(pid);
+          let txt = '';
+          if (!obj) txt = `Error: No existe el PID ${v}.`;
+          else if (subPaso === '1') {
+            colas[obj.prioridad].eliminar(obj.pid);
+            obj.estado = ESTADO.ESPERA;
+            obj.cpu_uso = 0.0;
+            if (procesoEnCpu === obj) procesoEnCpu = null;
+            dibujar();
+            txt = `PID ${pid} (${obj.nombre}) -> State T (Suspendido).`;
+          } else {
+            if (obj.estado === ESTADO.ESPERA) {
+              obj.estado = ESTADO.LISTO;
+              obj.ciclos_esperando = 0;
+              if (!colas[obj.prioridad].estaEnCola(obj.pid)) colas[obj.prioridad].encolar(obj);
+              dibujar();
+              txt = `PID ${pid} (${obj.nombre}) -> State S (Reanudado al final de Q${obj.prioridad}).`;
+            } else txt = `El PID ${pid} no esta suspendido.`;
+          }
+          modoPrompt = 'espera';
+          mostrarSoloTexto(txt);
+        } else if (modoPrompt === '4') {
+          const nq = parseInt(v, 10);
+          let txt = '';
+          if (!Number.isNaN(nq) && nq >= 5 && nq <= 25) {
+            quantumSistema = nq;
+            txt = `Quantums actualizados -> Q0=${nq}, Q1=${nq*2}, Q2=${nq*4}.`;
+          } else txt = `Valor invalido. Se mantiene en Q0=${quantumSistema}.`;
+          modoPrompt = 'espera';
+          mostrarSoloTexto(txt);
+        } else if (modoPrompt === '6') {
+          const pid = parseInt(v, 10);
+          const obj = Number.isNaN(pid) ? null : arbol.buscar(pid);
+          let txt = '';
+          if (obj && obj.estado !== ESTADO.TERMINADO) {
+            terminarProceso(obj, ciclo, MOTIVO.KILL);
+            colas[obj.prioridad].eliminar(pid);
+            if (procesoEnCpu === obj) procesoEnCpu = null;
+            verificarMemoria();
+            dibujar();
+            txt = `Senal SIGTERM enviada: PID ${pid} (${obj.nombre}) finalizado.`;
+          } else txt = `Error: No existe un proceso activo con PID ${v}.`;
+          modoPrompt = 'espera';
+          mostrarSoloTexto(txt);
+        }
+      }
+
+      function paso() {
+        if (pausado || finalizado) return;
+        intentarCrearProceso(admisionAbierta, false);
+        aplicarEnvejecimiento();
+        ejecutarPlanificador();
+        verificarMemoria();
+        dibujar();
+        ciclo++;
+      }
+
+      function iniciar() {
+        if (timerId) clearInterval(timerId);
+        lista = [];
+        colas = [new ColaListos(), new ColaListos(), new ColaListos()];
+        arbol = new ArbolPID();
+        hash = new TablaHash();
+        quantumSistema = 10;
+        ciclo = 1;
+        contadorRespaldo = 1000;
+        procesoEnCpu = null;
+        ordenCriterio = CRITERIO.MEM;
+        ramGb = 0.80;
+        swpGb = 0.00;
+        admisionAbierta = true;
+        mensajeOom = '';
+        pausado = false;
+        finalizado = false;
+        cerrarPrompt();
+
+        for (let i = 0; i < 5; i++) intentarCrearProceso(true, true);
+        ejecutarPlanificador();
+        verificarMemoria();
+        dibujar();
+        ciclo++;
+        timerId = setInterval(paso, 1500);
+      }
+
+      elPantalla.addEventListener('click', e => {
+        const fk = e.target.closest('.fkey');
+        if (fk) activarTecla(fk.dataset.key);
+      });
+
+      elEntrada.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          procesarEntrada(elEntrada.value);
+        } else if (e.key === 'Escape') {
+          cerrarPrompt();
+        }
+      });
+
+      window.addEventListener('keydown', e => {
+        if (finalizado) { iniciar(); return; }
+        if (modoPrompt === 'espera') {
+          if (e.key === 'Enter' || e.key === 'Escape' || e.key === ' ') {
+            e.preventDefault();
+            cerrarPrompt();
+          }
+          return;
+        }
+        if (document.activeElement === elEntrada) return;
+        if (['0', '1', '2', '3', '4', '5', '6', '7'].includes(e.key)) {
+          e.preventDefault();
+          activarTecla(e.key);
+        }
+      });
+
+      window.addEventListener('load', iniciar);
+    })();
+  </script>
+</body>
+</html>
